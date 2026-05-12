@@ -287,11 +287,20 @@
 <script>
     // ============ SUPABASE CONFIGURATION ============
     // ⚠️ IMPORTANT: Replace these with your actual Supabase credentials!
-    const SUPABASE_URL = 'YOUR_SUPABASE_URL';  // Get from https://supabase.com/dashboard/project/_/settings/api
-    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';  // Your anon public key
+    const MY_SUPABASE_URL = 'https://yattwpdxcfixvqngnaok.supabase.co';  // Get from https://supabase.com/dashboard/project/_/settings/api
+    const MY_SUPABASE_ANON_KEY = 'sb_publishable_P03xMIu_SPnFh-uPrr98ug_Ez7q24pf';  // Your anon public key
     
-    // Initialize Supabase client
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Initialize Supabase client with unique variable name to avoid conflicts
+    let supabaseClient = null;
+    
+    // Wait for Supabase to load
+    function initSupabase() {
+        if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+            supabaseClient = window.supabase.createClient(MY_SUPABASE_URL, MY_SUPABASE_ANON_KEY);
+            return true;
+        }
+        return false;
+    }
     
     // ============ GLOBAL VARIABLES ============
     const editor = document.getElementById('richEditor');
@@ -338,12 +347,12 @@
     
     // ============ CLOUD STORAGE FUNCTIONS ============
     async function saveContentToCloud(content) {
-        if (isSaving || !contentLoaded) return;
+        if (isSaving || !contentLoaded || !supabaseClient) return;
         isSaving = true;
         updateStatus('Saving...');
         
         try {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('whiteboard_contents')
                 .upsert({
                     user_id: currentUserId,
@@ -366,13 +375,18 @@
     }
     
     async function loadContentFromCloud() {
+        if (!supabaseClient) {
+            console.error('Supabase not initialized');
+            return;
+        }
+        
         updateStatus('Loading from cloud...');
         try {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('whiteboard_contents')
                 .select('content_html')
                 .eq('user_id', currentUserId)
-                .maybeSingle();  // Use maybeSingle() instead of single() to avoid errors
+                .maybeSingle();
             
             if (error) throw error;
             
@@ -403,7 +417,9 @@
             updateStatus('Error loading', true);
             showMessage('Failed to load: ' + error.message, true);
             // Still allow editing even if load fails
-            editor.innerHTML = '<p>⚠️ Could not load from cloud. Your content will still save locally for this session.</p><p>Check Supabase credentials in the code.</p>';
+            if (editor.innerHTML === '<p>Loading your whiteboard from cloud...</p>') {
+                editor.innerHTML = '<p>⚠️ Could not load from cloud. Please check Supabase credentials.</p><p>Make sure to replace YOUR_SUPABASE_URL and YOUR_SUPABASE_ANON_KEY in the code.</p>';
+            }
             contentLoaded = true;
         }
     }
@@ -489,7 +505,7 @@
         saveContentToCloud(editor.innerHTML);
     });
     
-    // ============ FIX: GO BUTTON NAVIGATION ============
+    // ============ GO BUTTON NAVIGATION ============
     function navigateToLink() {
         let url = document.getElementById('urlInput').value.trim();
         
@@ -540,19 +556,33 @@
     async function init() {
         currentUserId = getUserId();
         console.log('User ID:', currentUserId);
-        console.log('Supabase URL:', SUPABASE_URL);
+        console.log('Supabase URL:', MY_SUPABASE_URL);
         
         // Check if Supabase credentials are configured
-        if (SUPABASE_URL === 'https://yattwpdxcfixvqngnaok.supabase.co' || SUPABASE_ANON_KEY === 'sb_publishable_P03xMIu_SPnFh-uPrr98ug_Ez7q24pf') {
+        if (MY_SUPABASE_URL === 'YOUR_SUPABASE_URL' || MY_SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
             console.error('⚠️ Please configure your Supabase credentials!');
-            editor.innerHTML = '<p style="color: red; padding: 20px;"><strong>⚠️ Configuration Required</strong></p><p>Please replace SUPABASE_URL and SUPABASE_ANON_KEY in the code with your actual Supabase credentials.</p><p>Get them from: https://supabase.com/dashboard/project/_/settings/api</p>';
+            editor.innerHTML = '<div style="color: #d32f2f; padding: 20px; background: #ffebee; border-radius: 12px;"><strong>⚠️ Configuration Required</strong><br><br>Please replace <code>YOUR_SUPABASE_URL</code> and <code>YOUR_SUPABASE_ANON_KEY</code> in the code with your actual Supabase credentials.<br><br>📌 Get them from: <a href="https://supabase.com/dashboard/project/_/settings/api" target="_blank">Supabase Dashboard → Project Settings → API</a></div>';
             showMessage('⚠️ Please configure Supabase credentials in the code', true);
             return;
         }
         
-        await loadContentFromCloud();
+        // Wait for Supabase to be ready
+        let retries = 0;
+        while (!initSupabase() && retries < 10) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            retries++;
+        }
+        
+        if (supabaseClient) {
+            await loadContentFromCloud();
+        } else {
+            console.error('Failed to initialize Supabase');
+            editor.innerHTML = '<div style="color: #d32f2f; padding: 20px;"><strong>Error:</strong> Failed to load Supabase. Please check your internet connection.</div>';
+            showMessage('Failed to initialize Supabase', true);
+        }
     }
     
+    // Start the app
     init();
 </script>
 </body>
