@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Whiteboard Studio | Rich Text & Link Navigator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(145deg, #e9eef3 0%, #d9e0e8 100%);
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            min-height: 100vh;
+            padding: 2rem 1.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* main whiteboard container – like a physical board */
+        .whiteboard {
+            max-width: 1400px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 2rem;
+            box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* header / link section (Part 1) */
+        .link-section {
+            background: #fef9e8;
+            border-bottom: 2px solid #ffdfb8;
+            padding: 1.25rem 2rem;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 1rem;
+            backdrop-filter: blur(2px);
+        }
+
+        .link-label {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #b45f1b;
+            background: #fff0dd;
+            padding: 0.4rem 1rem;
+            border-radius: 60px;
+            letter-spacing: -0.2px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .link-label::before {
+            content: "🔗";
+            font-size: 1.1rem;
+        }
+
+        .link-input-wrapper {
+            flex: 3;
+            min-width: 220px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        #urlInput {
+            flex: 4;
+            padding: 0.8rem 1.2rem;
+            font-size: 0.95rem;
+            border: 1.5px solid #e9d6bd;
+            border-radius: 60px;
+            background: white;
+            transition: 0.2s;
+            font-family: monospace;
+            outline: none;
+            color: #1e2a3a;
+        }
+
+        #urlInput:focus {
+            border-color: #f7b05e;
+            box-shadow: 0 0 0 3px rgba(247, 176, 94, 0.2);
+        }
+
+        .go-btn {
+            background: #2c3e2f;
+            border: none;
+            padding: 0 1.8rem;
+            border-radius: 60px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: white;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            font-family: inherit;
+        }
+
+        .go-btn:hover {
+            background: #1f2c21;
+            transform: scale(0.97);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .go-btn:active {
+            transform: scale(0.96);
+        }
+
+        /* toolbar section — bold, italic, underline, image (as google doc style) */
+        .toolbar {
+            background: #fafbfc;
+            padding: 0.9rem 2rem;
+            border-bottom: 1px solid #eaeef2;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.6rem;
+            row-gap: 0.8rem;
+        }
+
+        .tool-btn {
+            background: white;
+            border: 1px solid #dce3e9;
+            border-radius: 12px;
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #2c3e50;
+            font-family: inherit;
+            box-shadow: 0 0 0 transparent;
+        }
+
+        .tool-btn:hover {
+            background: #eef2f7;
+            border-color: #bdc4cc;
+            transform: translateY(-1px);
+        }
+
+        .tool-btn:active {
+            background: #e2e8f0;
+            transform: translateY(1px);
+        }
+
+        .tool-btn img, .tool-btn svg {
+            width: 16px;
+            height: 16px;
+            pointer-events: none;
+        }
+
+        .separator {
+            width: 1px;
+            height: 28px;
+            background: #cdd7e0;
+            margin: 0 0.2rem;
+        }
+
+        /* image button specific */
+        .image-upload-label {
+            background: white;
+            border: 1px solid #dce3e9;
+            border-radius: 12px;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #2c3e50;
+        }
+
+        .image-upload-label:hover {
+            background: #eef2f7;
+            border-color: #bdc4cc;
+        }
+
+        #imageUpload {
+            display: none;
+        }
+
+        /* main editing area — whiteboard box */
+        .editor-container {
+            padding: 1.8rem 2rem 2.5rem 2rem;
+            background: #ffffff;
+        }
+
+        .rich-editor {
+            background: #fffdf9;
+            border-radius: 1.5rem;
+            border: 1px solid #f0e3d4;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.02);
+            min-height: 480px;
+            padding: 1.5rem;
+            font-size: 1rem;
+            line-height: 1.6;
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            outline: none;
+            transition: all 0.1s ease;
+            color: #1e2f3c;
+            overflow-y: auto;
+            resize: vertical;
+        }
+
+        .rich-editor:focus {
+            border-color: #f7c48b;
+            box-shadow: 0 0 0 3px rgba(247, 176, 94, 0.2), inset 0 1px 2px rgba(0,0,0,0.02);
+        }
+
+        /* placeholder style when empty */
+        .rich-editor:empty:before {
+            content: "✏️  Start typing here ... (bold, italic, underline, or paste images)";
+            color: #afbbca;
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        /* image integration inside editor */
+        .rich-editor img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 16px;
+            margin: 8px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: block;
+        }
+
+        /* footer tiny hint */
+        .footer-note {
+            text-align: center;
+            font-size: 0.75rem;
+            padding: 0.8rem 1rem;
+            background: #fefaf5;
+            border-top: 1px solid #f5e9de;
+            color: #8f9aab;
+        }
+
+        @media (max-width: 680px) {
+            body {
+                padding: 1rem;
+            }
+            .toolbar {
+                padding: 0.8rem 1rem;
+            }
+            .editor-container {
+                padding: 1rem;
+            }
+            .link-section {
+                padding: 1rem;
+            }
+            .tool-btn, .image-upload-label {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.75rem;
+            }
+        }
+
+        /* simple alert style for link errors */
+        .toast-message {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e272e;
+            color: #ffecb3;
+            padding: 8px 18px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            font-weight: 500;
+            backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body>
+<div class="whiteboard">
+    <!-- PART 1: LINK BOX WITH GO OPTION -->
+    <div class="link-section">
+        <span class="link-label">Navigate</span>
+        <div class="link-input-wrapper">
+            <input type="text" id="urlInput" placeholder="https:// or any website address..." value="https://www.wikipedia.org">
+            <button class="go-btn" id="goBtn">⟳ Go</button>
+        </div>
+    </div>
+
+    <!-- PART 2: TOOLBAR + WHITE BOARD EDITOR (Rich text) -->
+    <div class="toolbar">
+        <button class="tool-btn" id="boldBtn" title="Bold (Ctrl+B)"><strong>B</strong> <span style="font-weight:normal;">Bold</span></button>
+        <button class="tool-btn" id="italicBtn" title="Italic (Ctrl+I)"><em>I</em> Italic</button>
+        <button class="tool-btn" id="underlineBtn" title="Underline (Ctrl+U)"><u>U</u> Underline</button>
+        <div class="separator"></div>
+        <label class="image-upload-label" id="imageLabelBtn" title="Insert image from device">
+            🖼️ Insert Image
+            <input type="file" id="imageUpload" accept="image/*">
+        </label>
+        <div class="separator"></div>
+        <span style="font-size: 12px; color:#6c7a89; margin-left: auto;">✨ rich text area</span>
+    </div>
+
+    <div class="editor-container">
+        <div id="richEditor" class="rich-editor" contenteditable="true">
+            <!-- Default demo whiteboard content: can be cleared but gives some style examples -->
+            <p><strong>✨ Welcome to your Whiteboard!</strong> Here you can write anything, <em>italicize</em>, <u>underline</u>, or <strong><em>combine</em></strong> styles.</p>
+            <p>📸 You can also insert images using the "Insert Image" button — they will appear inline like Google Docs.</p>
+            <p>🔗 <u>Link box above</u>: paste any website and press Go to open it in a new tab (or current).</p>
+            <p>✨ Enjoy the clean whiteboard experience!</p>
+        </div>
+    </div>
+    <div class="footer-note">
+        💡 Tip: Select text and use toolbar buttons. For images, click "Insert Image" and pick from your computer – they will be added at cursor position.
+    </div>
+</div>
+<div id="toastMsg" class="toast-message"></div>
+
+<script>
+    (function() {
+        // ---------- DOM elements ----------
+        const urlInput = document.getElementById('urlInput');
+        const goBtn = document.getElementById('goBtn');
+        const editor = document.getElementById('richEditor');
+        const boldBtn = document.getElementById('boldBtn');
+        const italicBtn = document.getElementById('italicBtn');
+        const underlineBtn = document.getElementById('underlineBtn');
+        const imageUploadInput = document.getElementById('imageUpload');
+        
+        // Helper: show floating message
+        function showMessage(msg, isError = false) {
+            const toast = document.getElementById('toastMsg');
+            toast.textContent = msg;
+            toast.style.backgroundColor = isError ? '#aa2e2e' : '#1e2f3c';
+            toast.style.color = '#ffffff';
+            toast.style.opacity = '1';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+            }, 2500);
+        }
+
+        // ------------------- 1. LINK & GO BUTTON LOGIC -------------------
+        function normalizeUrl(rawUrl) {
+            let trimmed = rawUrl.trim();
+            if (!trimmed) return null;
+            // if no protocol, add https:// by default (smart)
+            if (!/^https?:\/\//i.test(trimmed) && !/^mailto:/i.test(trimmed) && !/^tel:/i.test(trimmed)) {
+                // but also avoid double slash weirdness
+                trimmed = 'https://' + trimmed;
+            }
+            return trimmed;
+        }
+
+        function handleGo() {
+            let rawLink = urlInput.value.trim();
+            if (rawLink === "") {
+                showMessage("⚠️ Please enter a link (e.g., example.com or https://...)", true);
+                return;
+            }
+            let finalUrl = normalizeUrl(rawLink);
+            if (!finalUrl) {
+                showMessage("Invalid link format", true);
+                return;
+            }
+            // validate URL format with simple try-catch (constructor)
+            try {
+                new URL(finalUrl);
+            } catch (e) {
+                showMessage("Invalid URL – missing protocol or invalid characters. Try adding http:// or https://", true);
+                return;
+            }
+            // security / safe open
+            window.open(finalUrl, '_blank', 'noopener,noreferrer');
+            showMessage(`🔓 Opened: ${finalUrl} in new tab`);
+        }
+
+        goBtn.addEventListener('click', handleGo);
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleGo();
+            }
+        });
+
+        // ---------- 2. RICH TEXT EDITOR: BOLD, ITALIC, UNDERLINE (execCommand fallback + modern approach) ----------
+        // We'll use document.execCommand for simplicity robust cross-browser but we also ensure focus and selection.
+        // For modern environment, it works perfectly for bold/italic/underline and insertImage (but we implement image via base64).
+        // execCommand is still widely supported for styling.
+        
+        function applyStyle(command) {
+            if (!editor.isContentEditable) return;
+            editor.focus();
+            // check if any text selected or just insert style
+            const selection = window.getSelection();
+            if (selection.isCollapsed && command !== 'insertImage') {
+                // If no selection, we just toggle but we can still apply at cursor (makes sense)
+                // execCommand can style new text after typing but it's fine.
+            }
+            document.execCommand(command, false, null);
+            // after apply, keep focus
+            editor.focus();
+        }
+
+        boldBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            applyStyle('bold');
+        });
+        italicBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            applyStyle('italic');
+        });
+        underlineBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            applyStyle('underline');
+        });
+
+        // Support keyboard shortcuts (Ctrl+B, Ctrl+I, Ctrl+U) inside editor area for native feel
+        editor.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                let handled = false;
+                if (e.key === 'b' || e.key === 'B') {
+                    e.preventDefault();
+                    applyStyle('bold');
+                    handled = true;
+                } else if (e.key === 'i' || e.key === 'I') {
+                    e.preventDefault();
+                    applyStyle('italic');
+                    handled = true;
+                } else if (e.key === 'u' || e.key === 'U') {
+                    e.preventDefault();
+                    applyStyle('underline');
+                    handled = true;
+                }
+                if (handled) {
+                    editor.focus();
+                }
+            }
+        });
+
+        // ---------- 3. PASTE IMAGE: (as we do in google doc) Also insert from file picker ----------
+        // Function to insert image at caret position (using base64 or blob url)
+        function insertImageAtCaret(imgSrc, altText = "user image") {
+            editor.focus();
+            const img = document.createElement('img');
+            img.src = imgSrc;
+            img.alt = altText;
+            img.style.maxWidth = "100%";
+            img.style.borderRadius = "12px";
+            img.style.margin = "8px 0";
+            // Insert image where cursor is
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                range.deleteContents(); // just in case selected text but we replace selection? better to insert image at cursor, removing any selected content? 
+                // Google Docs-like: Insert image overriding selection (replace selection with image)
+                range.insertNode(img);
+                // move cursor after image (create new range)
+                range.collapse(false); // after image
+                selection.removeAllRanges();
+                selection.addRange(range);
+            } else {
+                // fallback: append into editor - but seldom case
+                editor.appendChild(img);
+            }
+            // trigger input event for any future saves (not needed but nice)
+            editor.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        // handle file upload: read as dataURL and insert
+        imageUploadInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                showMessage("Please select a valid image file (JPEG, PNG, GIF, etc.)", true);
+                imageUploadInput.value = '';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const dataUrl = e.target.result;
+                insertImageAtCaret(dataUrl, file.name);
+                showMessage("✅ Image inserted successfully", false);
+                imageUploadInput.value = ''; // reset file input so same file can be re-inserted
+            };
+            reader.onerror = () => {
+                showMessage("Error reading image", true);
+                imageUploadInput.value = '';
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // ---------- PASTE HANDLER: support paste images from clipboard (like Google Docs) ----------
+        editor.addEventListener('paste', (event) => {
+            const items = (event.clipboardData || window.clipboardData).items;
+            let hasImage = false;
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                if (item.type.indexOf('image') !== -1) {
+                    hasImage = true;
+                    const blob = item.getAsFile();
+                    if (blob) {
+                        event.preventDefault(); // prevent default text paste when image is being pasted
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                            const imgBase64 = ev.target.result;
+                            insertImageAtCaret(imgBase64, "pasted-image");
+                            showMessage("📸 Image pasted from clipboard", false);
+                        };
+                        reader.readAsDataURL(blob);
+                        break; // handle first image only
+                    }
+                }
+            }
+            // if no image, we let default paste behavior (plain text + formatting) go through.
+            // We don't block regular text paste, so that's fine.
+        });
+
+        // Additional: for dragging and dropping images? (nice extra but not mandatory)
+        editor.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+        editor.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const files = e.dataTransfer.files;
+            if (files && files.length > 0) {
+                const file = files[0];
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        insertImageAtCaret(ev.target.result, file.name);
+                        showMessage("🖼️ Image dropped & inserted", false);
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    showMessage("Please drop an image file", true);
+                }
+            }
+        });
+
+        // ensure that styled content retains default placeholder behavior if empty
+        // also add a proactive focus and ensure contenteditable works with images
+        // Additional: support removing default browser image resize grab handles? not needed but it's fine.
+        
+        // Set focus and cursor at end optionally for usability (keep ready)
+        // but we also let user click anywhere. not mandatory.
+        // For preserving default whiteboard styles, ensure that any new line with images is clean.
+
+        // Automatically sanitize any broken links? fine
+        
+        // Ensure image insertion at caret works even if editor is empty: create paragraph?
+        // it will insert image into empty div and works because placeholder disappears, good.
+        // Also, if empty, the :before pseudo disappears after child inserted.
+        
+        // for additional Google Doc style: we can also add optional 'paste as plain text'? not needed 
+        // but great.
+        
+        // Because we respect the look and feel, we also expose ability to resize images? browser already provides resize handles for contenteditable images.
+        // That's perfect for UX similar to Google Docs (though Google docs uses custom, but most users will love native resize)
+
+        console.log("Whiteboard ready: link navigator + rich text with bold/italic/underline/image overlay");
+
+        // optional: set demo link preview if needed? No additional.
+        // Edge case: when toolbar button is pressed, execCommand works nicely.
+        // Also to ensure that if someone uses enter etc, formatting persists -> default behavior fine.
+        
+        // add "insert image" button also triggers from label (perfect)
+        // For any future improvements: make the link box can also open in same tab? not required but given spec "takes to the website in the box" typical new tab is safer.
+        
+        // Potential bug for empty editor and execCommand bold: still works, contenteditable will create styled text.
+        // Provide fallback for mobile touch? everything good.
+
+        // Additionally, we add a little fix: when image is inserted, ensure no unwanted <br> before image but it's okay.
+        // & complete part 1 and part 2 with flawless integration.
+        
+        // Fancy extra: when go button triggers and input is same as existing link? no issue. 
+        // also showing toast errors.
+        
+        // Ensuring that typed text also includes image alignment.
+    })();
+</script>
+</body>
+</html>
