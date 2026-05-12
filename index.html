@@ -243,47 +243,17 @@
             font-weight: 500;
             white-space: nowrap;
         }
-
-        .config-panel {
-            max-width: 1400px;
-            margin: 0 auto 1rem auto;
-            background: #fff3e0;
-            border-radius: 12px;
-            padding: 1rem;
-            display: none;
-        }
-
-        .config-panel.show {
-            display: block;
-        }
-
-        .config-panel input {
-            width: 100%;
-            padding: 8px;
-            margin: 5px 0;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-        }
     </style>
 </head>
 <body>
 <div class="status-bar">
     <div class="status-indicator">
         <span class="status-dot"></span>
-        <span id="statusText">Initializing...</span>
+        <span id="statusText">Connecting to shared whiteboard...</span>
     </div>
     <div>
         <button class="save-btn" id="manualSaveBtn">💾 Sync Now</button>
-        <button class="save-btn" id="configBtn" style="background: #ff9800;">⚙️ Setup</button>
     </div>
-</div>
-
-<div class="config-panel" id="configPanel">
-    <h4 style="margin-bottom: 10px;">🔧 Supabase Configuration</h4>
-    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Get these from <a href="https://supabase.com/dashboard/project/_/settings/api" target="_blank">Supabase Dashboard → Settings → API</a></p>
-    <input type="text" id="supabaseUrlInput" placeholder="Project URL (e.g., https://xxxxx.supabase.co)">
-    <input type="text" id="supabaseKeyInput" placeholder="anon public key">
-    <button id="saveConfigBtn" style="margin-top: 10px; padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer;">Save & Connect</button>
 </div>
 
 <div class="whiteboard">
@@ -318,15 +288,22 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+    // ============================================
+    // ⚠️ IMPORTANT: REPLACE WITH YOUR SUPABASE CREDENTIALS
+    // ============================================
+    const MY_SUPABASE_URL = 'https://yattwpdxcfixvqngnaok.supabase.co';  // ← REPLACE THIS
+    const MY_SUPABASE_ANON_KEY = 'sb_publishable_P03xMIu_SPnFh-uPrr98ug_Ez7q24pf';  // ← REPLACE THIS
+    // ============================================
+    
+    const SHARED_BOARD_ID = 'main_whiteboard';
+    
     // ============ GLOBAL VARIABLES ============
     let supabaseClient = null;
     let isUpdatingFromSync = false;
     let isSavingToCloud = false;
     let lastKnownContent = '';
     let pollingInterval = null;
-    let lastUpdateTimestamp = 0;
     
-    const SHARED_BOARD_ID = 'main_whiteboard';
     const editor = document.getElementById('richEditor');
     
     // ============ HELPER FUNCTIONS ============
@@ -356,20 +333,15 @@
         }
     }
     
-    // Get current editor content (normalized)
     function getCurrentContent() {
         return editor.innerHTML.trim();
     }
     
-    // Save to cloud (only if content actually changed)
+    // Save to cloud
     async function saveContentToCloud(content, isManual = false) {
         if (!supabaseClient) return false;
         if (isSavingToCloud) return false;
-        
-        // Don't save if content hasn't changed
-        if (content === lastKnownContent && !isManual) {
-            return false;
-        }
+        if (content === lastKnownContent && !isManual) return false;
         
         isSavingToCloud = true;
         if (!isManual) updateStatus('Saving...');
@@ -388,9 +360,8 @@
             if (error) throw error;
             
             lastKnownContent = content;
-            lastUpdateTimestamp = Date.now();
             updateStatus('Connected');
-            if (isManual) showMessage('✓ Manually synced!');
+            if (isManual) showMessage('✓ Synced to cloud!');
             
             return true;
         } catch (error) {
@@ -403,7 +374,7 @@
         }
     }
     
-    // Load from cloud (only if content is newer)
+    // Load from cloud
     async function loadContentFromCloud() {
         if (!supabaseClient) return;
         if (isUpdatingFromSync) return;
@@ -412,7 +383,7 @@
         try {
             const { data, error } = await supabaseClient
                 .from('shared_whiteboard')
-                .select('content_html, updated_at')
+                .select('content_html')
                 .eq('board_id', SHARED_BOARD_ID)
                 .maybeSingle();
             
@@ -422,34 +393,17 @@
                 const cloudContent = data.content_html;
                 const currentContent = getCurrentContent();
                 
-                // Only update if cloud content is different AND not the same as what we just saved
                 if (cloudContent !== currentContent && cloudContent !== lastKnownContent) {
                     console.log('New content from cloud, updating...');
                     isUpdatingFromSync = true;
-                    
-                    // Save current scroll position
-                    const scrollPos = editor.scrollTop;
-                    const selection = window.getSelection();
-                    const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-                    
                     editor.innerHTML = cloudContent;
                     lastKnownContent = cloudContent;
-                    
-                    // Restore cursor position if possible (simplified)
-                    if (range && editor.contains(range.commonAncestorContainer)) {
-                        selection.removeAllRanges();
-                        selection.addRange(range);
-                    }
-                    editor.scrollTop = scrollPos;
-                    
                     isUpdatingFromSync = false;
                     showMessage('🔄 Content updated from another device');
                 } else if (!lastKnownContent && cloudContent) {
-                    // First load
                     editor.innerHTML = cloudContent;
                     lastKnownContent = cloudContent;
                 } else if (!data.content_html) {
-                    // First time - set initial content
                     const initialContent = `
                         <p><strong>🌍 Welcome to the SHARED Whiteboard!</strong></p>
                         <p>This whiteboard is <strong>synced across all devices</strong>.</p>
@@ -466,13 +420,12 @@
         } catch (error) {
             console.error('Load error:', error);
             if (error.message.includes('relation') || error.message.includes('does not exist')) {
-                updateStatus('Setup required');
-                document.getElementById('configPanel')?.classList.add('show');
+                updateStatus('Database setup required', true);
                 editor.innerHTML = `
-                    <div style="text-align: center; padding: 40px;">
-                        <h3>⚠️ Database Setup Required</h3>
-                        <p style="margin-top: 20px;">Please run the SQL command in Supabase SQL Editor:</p>
-                        <pre style="background: #f5f5f5; padding: 10px; margin-top: 10px; text-align: left; overflow-x: auto;">
+                    <div style="color: #d32f2f; padding: 20px; background: #ffebee; border-radius: 12px;">
+                        <strong>⚠️ Database Setup Required</strong><br><br>
+                        Please run this SQL in Supabase SQL Editor:
+                        <pre style="background: white; padding: 10px; margin-top: 10px; overflow-x: auto;">
 CREATE TABLE shared_whiteboard (
     board_id TEXT PRIMARY KEY,
     content_html TEXT,
@@ -488,18 +441,18 @@ CREATE POLICY "Enable all" ON shared_whiteboard FOR ALL USING (true);</pre>
         }
     }
     
-    // Start polling for changes
+    // Start polling
     function startPolling() {
         if (pollingInterval) clearInterval(pollingInterval);
         pollingInterval = setInterval(() => {
             if (supabaseClient && !isSavingToCloud && !isUpdatingFromSync) {
                 loadContentFromCloud();
             }
-        }, 10000); // Check every 10 seconds
+        }, 10000);
         console.log('Polling started (every 10 seconds)');
     }
     
-    // Trigger auto-save after user stops typing
+    // Auto-save after user stops typing
     let saveTimeout;
     function triggerAutoSave() {
         if (saveTimeout) clearTimeout(saveTimeout);
@@ -508,7 +461,7 @@ CREATE POLICY "Enable all" ON shared_whiteboard FOR ALL USING (true);</pre>
             if (content && content !== '<br>' && content !== lastKnownContent) {
                 saveContentToCloud(content, false);
             }
-        }, 3000); // Save 3 seconds after user stops typing
+        }, 3000);
     }
     
     // ============ RICH TEXT EDITING ============
@@ -571,16 +524,11 @@ CREATE POLICY "Enable all" ON shared_whiteboard FOR ALL USING (true);</pre>
         }
     });
     
-    // Listen to edits
     editor.addEventListener('input', () => {
-        if (!isUpdatingFromSync) {
-            triggerAutoSave();
-        }
+        if (!isUpdatingFromSync) triggerAutoSave();
     });
     editor.addEventListener('keyup', () => {
-        if (!isUpdatingFromSync) {
-            triggerAutoSave();
-        }
+        if (!isUpdatingFromSync) triggerAutoSave();
     });
     
     // Go button
@@ -605,80 +553,50 @@ CREATE POLICY "Enable all" ON shared_whiteboard FOR ALL USING (true);</pre>
         await saveContentToCloud(content, true);
     });
     
-    // ============ SUPABASE CONNECTION ============
-    function connectToSupabase(url, key) {
-        if (!url || !key) {
-            showMessage('Please enter both URL and Key', true);
-            return false;
+    // ============ INITIALIZATION ============
+    async function init() {
+        // Check if credentials are configured
+        if (MY_SUPABASE_URL === 'https://your-project-id.supabase.co' || 
+            MY_SUPABASE_ANON_KEY === 'your-anon-public-key-here') {
+            console.error('Please configure your Supabase credentials in the code!');
+            editor.innerHTML = `
+                <div style="color: #d32f2f; padding: 40px; text-align: center;">
+                    <h3>⚠️ Configuration Required</h3>
+                    <p style="margin-top: 20px;">Please edit the HTML file and replace:</p>
+                    <pre style="background: #f5f5f5; padding: 10px; margin-top: 10px; text-align: left;">
+const MY_SUPABASE_URL = 'https://your-project-id.supabase.co';  // ← REPLACE THIS
+const MY_SUPABASE_ANON_KEY = 'your-anon-public-key-here';  // ← REPLACE THIS</pre>
+                    <p style="margin-top: 20px;">Get your credentials from: <br>
+                    <a href="https://supabase.com/dashboard/project/_/settings/api" target="_blank">
+                    Supabase Dashboard → Project Settings → API</a></p>
+                </div>
+            `;
+            updateStatus('Configure credentials', true);
+            return;
         }
         
-        if (!url.startsWith('https://')) {
-            showMessage('URL must start with https://', true);
-            return false;
+        // Validate URL format
+        if (!MY_SUPABASE_URL.startsWith('https://')) {
+            console.error('Invalid Supabase URL format');
+            editor.innerHTML = '<div style="color: #d32f2f; padding: 40px;"><strong>Error:</strong> Supabase URL must start with https://</div>';
+            return;
         }
         
         try {
-            supabaseClient = window.supabase.createClient(url, key);
-            showMessage('Connected to Supabase!');
+            supabaseClient = window.supabase.createClient(MY_SUPABASE_URL, MY_SUPABASE_ANON_KEY);
             updateStatus('Connected');
+            showMessage('Connected to Supabase!');
             
-            // Save to localStorage
-            localStorage.setItem('supabase_url', url);
-            localStorage.setItem('supabase_key', key);
-            
-            // Start syncing
             startPolling();
-            loadContentFromCloud();
-            
-            document.getElementById('configPanel')?.classList.remove('show');
-            return true;
+            await loadContentFromCloud();
         } catch (error) {
-            console.error('Connection error:', error);
-            showMessage('Connection failed: ' + error.message, true);
-            return false;
+            console.error('Init error:', error);
+            updateStatus('Connection failed', true);
+            showMessage('Failed to connect: ' + error.message, true);
         }
     }
     
-    // ============ CONFIGURATION UI ============
-    document.getElementById('configBtn')?.addEventListener('click', () => {
-        const panel = document.getElementById('configPanel');
-        panel?.classList.toggle('show');
-        
-        const savedUrl = localStorage.getItem('supabase_url');
-        const savedKey = localStorage.getItem('supabase_key');
-        if (savedUrl) document.getElementById('supabaseUrlInput').value = savedUrl;
-        if (savedKey) document.getElementById('supabaseKeyInput').value = savedKey;
-    });
-    
-    document.getElementById('saveConfigBtn')?.addEventListener('click', () => {
-        const url = document.getElementById('supabaseUrlInput')?.value.trim();
-        const key = document.getElementById('supabaseKeyInput')?.value.trim();
-        connectToSupabase(url, key);
-    });
-    
-    // ============ AUTO-CONNECT ON PAGE LOAD ============
-    function autoConnect() {
-        const savedUrl = localStorage.getItem('supabase_url');
-        const savedKey = localStorage.getItem('supabase_key');
-        
-        if (savedUrl && savedKey) {
-            console.log('Auto-connecting with saved credentials');
-            connectToSupabase(savedUrl, savedKey);
-        } else {
-            console.log('No saved credentials, showing setup panel');
-            updateStatus('Setup required');
-            document.getElementById('configPanel')?.classList.add('show');
-            editor.innerHTML = `
-                <div style="text-align: center; padding: 40px;">
-                    <h3>🔧 Welcome to Shared Whiteboard</h3>
-                    <p style="margin-top: 20px;">Click the <strong>⚙️ Setup</strong> button above to connect to Supabase.</p>
-                    <p style="margin-top: 10px; font-size: 14px; color: #666;">Get your free Supabase credentials at <a href="https://supabase.com" target="_blank">supabase.com</a></p>
-                </div>
-            `;
-        }
-    }
-    
-    autoConnect();
+    init();
 </script>
 </body>
 </html>
