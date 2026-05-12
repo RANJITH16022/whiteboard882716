@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shared Whiteboard | Cross-Device Sync</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
     <style>
         * {
             margin: 0;
@@ -12,8 +13,8 @@
         }
 
         body {
-            background: linear-gradient(145deg, #e9eef3 0%, #d9e0e8 100%);
-            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(145deg, #0a1628 0%, #061120 100%);
+            font-family: 'Courier New', 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
             min-height: 100vh;
             padding: 2rem 1.5rem;
         }
@@ -24,10 +25,11 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: white;
+            background: #0d1f3c;
             padding: 0.8rem 1.5rem;
             border-radius: 60px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            border: 1px solid #1e3a5f;
             flex-wrap: wrap;
             gap: 10px;
         }
@@ -37,6 +39,8 @@
             align-items: center;
             gap: 8px;
             font-size: 0.85rem;
+            color: #a8c8f0;
+            font-family: monospace;
         }
 
         .status-dot {
@@ -45,42 +49,47 @@
             border-radius: 50%;
             background: #4caf50;
             animation: pulse 2s infinite;
+            box-shadow: 0 0 5px #4caf50;
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
         }
 
         .save-btn {
-            background: #2c3e2f;
-            border: none;
+            background: #1e3a5f;
+            border: 1px solid #2e5a8a;
             padding: 0.5rem 1.2rem;
             border-radius: 40px;
-            color: white;
+            color: #e8f0fe;
             cursor: pointer;
             font-weight: 600;
             font-size: 0.85rem;
             transition: all 0.2s;
+            font-family: monospace;
         }
 
         .save-btn:hover {
-            background: #1f2c21;
+            background: #2e5a8a;
             transform: scale(0.98);
+            box-shadow: 0 0 10px rgba(46, 90, 138, 0.5);
+            color: white;
         }
 
         .whiteboard {
             max-width: 1400px;
             margin: 0 auto;
-            background: #ffffff;
+            background: #0a1628;
             border-radius: 2rem;
-            box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.35);
+            box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
             overflow: hidden;
+            border: 1px solid #1e3a5f;
         }
 
         .link-section {
-            background: #fef9e8;
-            border-bottom: 2px solid #ffdfb8;
+            background: #07122a;
+            border-bottom: 2px solid #1e3a5f;
             padding: 1.25rem 2rem;
             display: flex;
             flex-wrap: wrap;
@@ -91,10 +100,12 @@
         .link-label {
             font-weight: 600;
             font-size: 1rem;
-            color: #b45f1b;
-            background: #fff0dd;
+            color: #ffd966;
+            background: #1a2a4f;
             padding: 0.4rem 1rem;
             border-radius: 60px;
+            font-family: monospace;
+            border: 1px solid #2e5a8a;
         }
 
         .link-input-wrapper {
@@ -108,39 +119,47 @@
         #urlInput {
             flex: 4;
             padding: 0.8rem 1.2rem;
-            border: 1.5px solid #e9d6bd;
+            border: 1.5px solid #1e3a5f;
             border-radius: 60px;
             font-family: monospace;
             outline: none;
             font-size: 0.95rem;
+            background: #0a1628;
+            color: #e8f0fe;
         }
 
         #urlInput:focus {
-            border-color: #f7b05e;
-            box-shadow: 0 0 0 3px rgba(247, 176, 94, 0.2);
+            border-color: #ffd966;
+            box-shadow: 0 0 0 3px rgba(255, 217, 102, 0.2);
+        }
+
+        #urlInput::placeholder {
+            color: #4a6a8a;
         }
 
         .go-btn {
-            background: #2c3e2f;
-            border: none;
+            background: #1e3a5f;
+            border: 1px solid #2e5a8a;
             padding: 0.8rem 1.8rem;
             border-radius: 60px;
             font-weight: 700;
-            color: white;
+            color: #e8f0fe;
             cursor: pointer;
             font-size: 0.95rem;
             transition: all 0.2s;
+            font-family: monospace;
         }
 
         .go-btn:hover {
-            background: #1f2c21;
+            background: #2e5a8a;
             transform: scale(0.97);
+            box-shadow: 0 0 10px rgba(46, 90, 138, 0.5);
         }
 
         .toolbar {
-            background: #fafbfc;
+            background: #07122a;
             padding: 0.9rem 2rem;
-            border-bottom: 1px solid #eaeef2;
+            border-bottom: 1px solid #1e3a5f;
             display: flex;
             flex-wrap: wrap;
             gap: 0.6rem;
@@ -148,23 +167,26 @@
         }
 
         .tool-btn {
-            background: white;
-            border: 1px solid #dce3e9;
+            background: #0a1628;
+            border: 1px solid #1e3a5f;
             border-radius: 12px;
             padding: 0.5rem 1rem;
             cursor: pointer;
             font-weight: 600;
             transition: all 0.2s;
+            font-family: monospace;
+            color: #e8f0fe;
         }
 
         .tool-btn:hover {
-            background: #eef2f7;
+            background: #1e3a5f;
             transform: translateY(-1px);
+            border-color: #ffd966;
         }
 
         .image-upload-label {
-            background: white;
-            border: 1px solid #dce3e9;
+            background: #0a1628;
+            border: 1px solid #1e3a5f;
             border-radius: 12px;
             padding: 0.5rem 1rem;
             cursor: pointer;
@@ -173,10 +195,13 @@
             gap: 6px;
             font-weight: 600;
             transition: all 0.2s;
+            font-family: monospace;
+            color: #e8f0fe;
         }
 
         .image-upload-label:hover {
-            background: #eef2f7;
+            background: #1e3a5f;
+            border-color: #ffd966;
         }
 
         #imageUpload {
@@ -185,28 +210,33 @@
 
         .editor-container {
             padding: 1.8rem 2rem 2.5rem 2rem;
+            background: #0a1628;
         }
 
         .rich-editor {
-            background: #fffdf9;
+            background: #0d1f3c;
             border-radius: 1.5rem;
-            border: 1px solid #f0e3d4;
+            border: 1px solid #1e3a5f;
             min-height: 480px;
             padding: 1.5rem;
             font-size: 1rem;
-            line-height: 1.6;
+            line-height: 1.8;
             outline: none;
             overflow-y: auto;
+            font-family: 'Courier New', 'SF Mono', 'Monaco', monospace;
+            color: #e8f0fe;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
         .rich-editor:focus {
-            border-color: #f7c48b;
-            box-shadow: 0 0 0 3px rgba(247, 176, 94, 0.1);
+            border-color: #ffd966;
+            box-shadow: 0 0 0 3px rgba(255, 217, 102, 0.1), inset 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
         .rich-editor:empty:before {
-            content: "✏️ Start typing... (syncs across all devices)";
-            color: #afbbca;
+            content: "✏️ Start typing on your shared whiteboard...";
+            color: #5a7a9a;
+            font-style: italic;
         }
 
         .rich-editor img {
@@ -214,16 +244,43 @@
             height: auto;
             border-radius: 12px;
             margin: 8px 0;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            border: 1px solid #1e3a5f;
+        }
+
+        /* Whiteboard text formatting styles */
+        .rich-editor strong, .rich-editor b {
+            color: #ffd966;
+            font-weight: bold;
+        }
+
+        .rich-editor em, .rich-editor i {
+            color: #a8c8f0;
+            font-style: italic;
+        }
+
+        .rich-editor u {
+            text-decoration: underline;
+            text-decoration-color: #ffd966;
+        }
+
+        .rich-editor p {
+            margin-bottom: 0.75rem;
+        }
+
+        .rich-editor h1, .rich-editor h2, .rich-editor h3 {
+            color: #ffd966;
+            margin-bottom: 0.5rem;
         }
 
         .footer-note {
             text-align: center;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             padding: 0.8rem;
-            background: #fefaf5;
-            border-top: 1px solid #f5e9de;
-            color: #8f9aab;
+            background: #07122a;
+            border-top: 1px solid #1e3a5f;
+            color: #5a7a9a;
+            font-family: monospace;
         }
 
         .toast-message {
@@ -231,8 +288,8 @@
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: #1e272e;
-            color: white;
+            background: #1e3a5f;
+            color: #e8f0fe;
             padding: 10px 20px;
             border-radius: 40px;
             font-size: 0.85rem;
@@ -242,6 +299,28 @@
             pointer-events: none;
             font-weight: 500;
             white-space: nowrap;
+            font-family: monospace;
+            border: 1px solid #ffd966;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Scrollbar styling */
+        .rich-editor::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .rich-editor::-webkit-scrollbar-track {
+            background: #07122a;
+            border-radius: 4px;
+        }
+
+        .rich-editor::-webkit-scrollbar-thumb {
+            background: #1e3a5f;
+            border-radius: 4px;
+        }
+
+        .rich-editor::-webkit-scrollbar-thumb:hover {
+            background: #2e5a8a;
         }
     </style>
 </head>
@@ -252,25 +331,25 @@
         <span id="statusText">Connecting to shared whiteboard...</span>
     </div>
     <div>
-        <button class="save-btn" id="manualSaveBtn">💾 Sync Now</button>
+        <button class="save-btn" id="manualSaveBtn">💾 SYNC NOW</button>
     </div>
 </div>
 
 <div class="whiteboard">
     <div class="link-section">
-        <span class="link-label">🔗 Navigate</span>
+        <span class="link-label">🔗 NAVIGATE</span>
         <div class="link-input-wrapper">
             <input type="text" id="urlInput" placeholder="Enter website URL (e.g., google.com)" value="https://www.google.com">
-            <button class="go-btn" id="goBtn">🚀 Go</button>
+            <button class="go-btn" id="goBtn">🚀 GO</button>
         </div>
     </div>
 
     <div class="toolbar">
-        <button class="tool-btn" id="boldBtn"><strong>B</strong></button>
-        <button class="tool-btn" id="italicBtn"><em>I</em></button>
-        <button class="tool-btn" id="underlineBtn"><u>U</u></button>
+        <button class="tool-btn" id="boldBtn"><strong>BOLD</strong></button>
+        <button class="tool-btn" id="italicBtn"><em>ITALIC</em></button>
+        <button class="tool-btn" id="underlineBtn"><u>UNDERLINE</u></button>
         <label class="image-upload-label">
-            🖼️ Image
+            🖼️ INSERT IMAGE
             <input type="file" id="imageUpload" accept="image/*">
         </label>
     </div>
@@ -281,7 +360,7 @@
         </div>
     </div>
     <div class="footer-note">
-        🌍 SHARED WHITEBOARD • Auto-syncs every 10 seconds • Works across all devices
+        🌍 SHARED WHITEBOARD • AUTO-SYNC EVERY 10 SECONDS • CLOUD STORAGE • CROSS-DEVICE
     </div>
 </div>
 <div id="toastMsg" class="toast-message"></div>
@@ -289,7 +368,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
     // ============================================
-    // ⚠️ IMPORTANT: REPLACE WITH YOUR SUPABASE CREDENTIALS
+    // 🔧 SUPABASE CREDENTIALS - REPLACE THESE!
     // ============================================
     const MY_SUPABASE_URL = 'https://yattwpdxcfixvqngnaok.supabase.co';  // ← REPLACE THIS
     const MY_SUPABASE_ANON_KEY = 'sb_publishable_P03xMIu_SPnFh-uPrr98ug_Ez7q24pf';  // ← REPLACE THIS
@@ -311,7 +390,8 @@
         const toast = document.getElementById('toastMsg');
         if (!toast) return;
         toast.textContent = msg;
-        toast.style.background = isError ? '#d32f2f' : '#1e272e';
+        toast.style.background = isError ? '#8b3a3a' : '#0d1f3c';
+        toast.style.borderColor = isError ? '#ff6b6b' : '#ffd966';
         toast.style.opacity = '1';
         setTimeout(() => toast.style.opacity = '0', 2000);
     }
@@ -323,10 +403,10 @@
         
         if (isError) {
             statusText.innerHTML = '⚠️ ' + text;
-            if (dot) dot.style.background = '#f44336';
+            if (dot) dot.style.background = '#ff6b6b';
         } else if (text.includes('Saving')) {
             statusText.innerHTML = '💾 ' + text;
-            if (dot) dot.style.background = '#ff9800';
+            if (dot) dot.style.background = '#ffd966';
         } else {
             statusText.innerHTML = '✅ ' + text;
             if (dot) dot.style.background = '#4caf50';
@@ -361,7 +441,7 @@
             
             lastKnownContent = content;
             updateStatus('Connected');
-            if (isManual) showMessage('✓ Synced to cloud!');
+            if (isManual) showMessage('✓ SYNCED TO CLOUD!');
             
             return true;
         } catch (error) {
@@ -399,19 +479,22 @@
                     editor.innerHTML = cloudContent;
                     lastKnownContent = cloudContent;
                     isUpdatingFromSync = false;
-                    showMessage('🔄 Content updated from another device');
+                    showMessage('🔄 UPDATED FROM ANOTHER DEVICE');
                 } else if (!lastKnownContent && cloudContent) {
                     editor.innerHTML = cloudContent;
                     lastKnownContent = cloudContent;
                 } else if (!data.content_html) {
                     const initialContent = `
-                        <p><strong>🌍 Welcome to the SHARED Whiteboard!</strong></p>
-                        <p>This whiteboard is <strong>synced across all devices</strong>.</p>
+                        <p><strong>🌍 WELCOME TO YOUR SHARED WHITEBOARD</strong></p>
+                        <p>This whiteboard is <strong>synced across all devices</strong> in real-time via cloud storage.</p>
                         <p>🔹 Open this link on multiple devices - they all see the same content</p>
                         <p>🔹 Changes sync automatically every 10 seconds</p>
-                        <p>🔹 Images and formatting are preserved</p>
+                        <p>🔹 Images and formatting are preserved forever</p>
                         <p><br></p>
-                        <p><em>✏️ Try typing here, then open this page on another device...</em></p>
+                        <p><em>✏️ Start typing here, then open this page on another device...</em></p>
+                        <p><em>🔄 Your changes will appear everywhere automatically!</em></p>
+                        <p><br></p>
+                        <p>--- <u>Pro tip</u>: Use the toolbar above for formatting ---</p>
                     `;
                     editor.innerHTML = initialContent;
                     await saveContentToCloud(initialContent, true);
@@ -422,10 +505,10 @@
             if (error.message.includes('relation') || error.message.includes('does not exist')) {
                 updateStatus('Database setup required', true);
                 editor.innerHTML = `
-                    <div style="color: #d32f2f; padding: 20px; background: #ffebee; border-radius: 12px;">
-                        <strong>⚠️ Database Setup Required</strong><br><br>
-                        Please run this SQL in Supabase SQL Editor:
-                        <pre style="background: white; padding: 10px; margin-top: 10px; overflow-x: auto;">
+                    <div style="color: #ffd966; padding: 20px; background: #1a2a4f; border-radius: 12px; border-left: 4px solid #ffd966;">
+                        <strong>⚠️ DATABASE SETUP REQUIRED</strong><br><br>
+                        Please run this SQL in your Supabase SQL Editor:
+                        <pre style="background: #07122a; padding: 10px; margin-top: 10px; overflow-x: auto; color: #a8c8f0;">
 CREATE TABLE shared_whiteboard (
     board_id TEXT PRIMARY KEY,
     content_html TEXT,
@@ -435,13 +518,14 @@ INSERT INTO shared_whiteboard (board_id, content_html)
 VALUES ('main_whiteboard', '<p>Shared whiteboard ready!</p>');
 ALTER TABLE shared_whiteboard ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Enable all" ON shared_whiteboard FOR ALL USING (true);</pre>
+                        <p style="margin-top: 10px;">Then refresh this page.</p>
                     </div>
                 `;
             }
         }
     }
     
-    // Start polling
+    // Start polling for changes
     function startPolling() {
         if (pollingInterval) clearInterval(pollingInterval);
         pollingInterval = setInterval(() => {
@@ -495,13 +579,13 @@ CREATE POLICY "Enable all" ON shared_whiteboard FOR ALL USING (true);</pre>
             img.style.margin = '8px 0';
             document.execCommand('insertHTML', false, img.outerHTML);
             triggerAutoSave();
-            showMessage('🖼️ Image added');
+            showMessage('🖼️ IMAGE ADDED');
         };
         reader.readAsDataURL(file);
         e.target.value = '';
     });
     
-    // Paste images
+    // Paste images from clipboard
     editor.addEventListener('paste', (e) => {
         const items = e.clipboardData.items;
         for (let item of items) {
@@ -514,9 +598,10 @@ CREATE POLICY "Enable all" ON shared_whiteboard FOR ALL USING (true);</pre>
                     const img = document.createElement('img');
                     img.src = ev.target.result;
                     img.style.maxWidth = '100%';
+                    img.style.borderRadius = '12px';
                     document.execCommand('insertHTML', false, img.outerHTML);
                     triggerAutoSave();
-                    showMessage('📸 Image pasted');
+                    showMessage('📸 IMAGE PASTED');
                 };
                 reader.readAsDataURL(blob);
                 break;
@@ -531,7 +616,7 @@ CREATE POLICY "Enable all" ON shared_whiteboard FOR ALL USING (true);</pre>
         if (!isUpdatingFromSync) triggerAutoSave();
     });
     
-    // Go button
+    // Go button navigation
     function navigateToLink() {
         let url = document.getElementById('urlInput')?.value.trim();
         if (!url) {
@@ -540,7 +625,7 @@ CREATE POLICY "Enable all" ON shared_whiteboard FOR ALL USING (true);</pre>
         }
         if (!url.startsWith('http')) url = 'https://' + url;
         window.open(url, '_blank');
-        showMessage(`Opening: ${url}`);
+        showMessage(`OPENING: ${url}`);
     }
     document.getElementById('goBtn')?.addEventListener('click', navigateToLink);
     document.getElementById('urlInput')?.addEventListener('keypress', (e) => {
@@ -553,6 +638,15 @@ CREATE POLICY "Enable all" ON shared_whiteboard FOR ALL USING (true);</pre>
         await saveContentToCloud(content, true);
     });
     
+    // Keyboard shortcut for manual save (Ctrl+S)
+    editor.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            const content = getCurrentContent();
+            saveContentToCloud(content, true);
+        }
+    });
+    
     // ============ INITIALIZATION ============
     async function init() {
         // Check if credentials are configured
@@ -560,14 +654,14 @@ CREATE POLICY "Enable all" ON shared_whiteboard FOR ALL USING (true);</pre>
             MY_SUPABASE_ANON_KEY === 'your-anon-public-key-here') {
             console.error('Please configure your Supabase credentials in the code!');
             editor.innerHTML = `
-                <div style="color: #d32f2f; padding: 40px; text-align: center;">
-                    <h3>⚠️ Configuration Required</h3>
+                <div style="color: #ffd966; padding: 40px; text-align: center; background: #1a2a4f; border-radius: 12px;">
+                    <h3>⚠️ CONFIGURATION REQUIRED</h3>
                     <p style="margin-top: 20px;">Please edit the HTML file and replace:</p>
-                    <pre style="background: #f5f5f5; padding: 10px; margin-top: 10px; text-align: left;">
+                    <pre style="background: #07122a; padding: 10px; margin-top: 10px; text-align: left; color: #a8c8f0;">
 const MY_SUPABASE_URL = 'https://your-project-id.supabase.co';  // ← REPLACE THIS
 const MY_SUPABASE_ANON_KEY = 'your-anon-public-key-here';  // ← REPLACE THIS</pre>
-                    <p style="margin-top: 20px;">Get your credentials from: <br>
-                    <a href="https://supabase.com/dashboard/project/_/settings/api" target="_blank">
+                    <p style="margin-top: 20px;">Get your credentials from:<br>
+                    <a href="https://supabase.com/dashboard/project/_/settings/api" target="_blank" style="color: #ffd966;">
                     Supabase Dashboard → Project Settings → API</a></p>
                 </div>
             `;
@@ -578,14 +672,14 @@ const MY_SUPABASE_ANON_KEY = 'your-anon-public-key-here';  // ← REPLACE THIS</
         // Validate URL format
         if (!MY_SUPABASE_URL.startsWith('https://')) {
             console.error('Invalid Supabase URL format');
-            editor.innerHTML = '<div style="color: #d32f2f; padding: 40px;"><strong>Error:</strong> Supabase URL must start with https://</div>';
+            editor.innerHTML = '<div style="color: #ff6b6b; padding: 40px;"><strong>Error:</strong> Supabase URL must start with https://</div>';
             return;
         }
         
         try {
             supabaseClient = window.supabase.createClient(MY_SUPABASE_URL, MY_SUPABASE_ANON_KEY);
             updateStatus('Connected');
-            showMessage('Connected to Supabase!');
+            showMessage('CONNECTED TO SUPABASE!');
             
             startPolling();
             await loadContentFromCloud();
