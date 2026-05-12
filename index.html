@@ -18,7 +18,6 @@
             padding: 2rem 1.5rem;
         }
 
-        /* status bar at top */
         .status-bar {
             max-width: 1400px;
             margin: 0 auto 1rem auto;
@@ -112,16 +111,29 @@
             border-radius: 60px;
             font-family: monospace;
             outline: none;
+            font-size: 0.95rem;
+        }
+
+        #urlInput:focus {
+            border-color: #f7b05e;
+            box-shadow: 0 0 0 3px rgba(247, 176, 94, 0.2);
         }
 
         .go-btn {
             background: #2c3e2f;
             border: none;
-            padding: 0 1.8rem;
+            padding: 0.8rem 1.8rem;
             border-radius: 60px;
             font-weight: 700;
             color: white;
             cursor: pointer;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .go-btn:hover {
+            background: #1f2c21;
+            transform: scale(0.97);
         }
 
         .toolbar {
@@ -141,10 +153,12 @@
             padding: 0.5rem 1rem;
             cursor: pointer;
             font-weight: 600;
+            transition: all 0.2s;
         }
 
         .tool-btn:hover {
             background: #eef2f7;
+            transform: translateY(-1px);
         }
 
         .image-upload-label {
@@ -156,6 +170,12 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .image-upload-label:hover {
+            background: #eef2f7;
         }
 
         #imageUpload {
@@ -178,6 +198,11 @@
             overflow-y: auto;
         }
 
+        .rich-editor:focus {
+            border-color: #f7c48b;
+            box-shadow: 0 0 0 3px rgba(247, 176, 94, 0.1);
+        }
+
         .rich-editor:empty:before {
             content: "✏️ Start typing... (auto-saves to cloud)";
             color: #afbbca;
@@ -188,6 +213,7 @@
             height: auto;
             border-radius: 12px;
             margin: 8px 0;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
         }
 
         .footer-note {
@@ -206,13 +232,15 @@
             transform: translateX(-50%);
             background: #1e272e;
             color: white;
-            padding: 8px 18px;
+            padding: 10px 20px;
             border-radius: 40px;
             font-size: 0.85rem;
             z-index: 999;
             opacity: 0;
             transition: opacity 0.2s;
             pointer-events: none;
+            font-weight: 500;
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -220,7 +248,7 @@
 <div class="status-bar">
     <div class="status-indicator">
         <span class="status-dot"></span>
-        <span id="statusText">Connected to cloud</span>
+        <span id="statusText">Loading from cloud...</span>
     </div>
     <button class="save-btn" id="manualSaveBtn">💾 Save Now</button>
 </div>
@@ -229,8 +257,8 @@
     <div class="link-section">
         <span class="link-label">🔗 Navigate</span>
         <div class="link-input-wrapper">
-            <input type="text" id="urlInput" placeholder="https:// or any website" value="https://www.google.com">
-            <button class="go-btn" id="goBtn">Go</button>
+            <input type="text" id="urlInput" placeholder="Enter website URL (e.g., google.com or https://example.com)" value="https://www.google.com">
+            <button class="go-btn" id="goBtn">🚀 Go</button>
         </div>
     </div>
 
@@ -246,11 +274,11 @@
 
     <div class="editor-container">
         <div id="richEditor" class="rich-editor" contenteditable="true">
-            <p>Loading your saved whiteboard...</p>
+            <p>Loading your whiteboard from cloud...</p>
         </div>
     </div>
     <div class="footer-note">
-        ✅ Auto-saves every 3 seconds to cloud • Access from any device • Images stored as base64
+        ✅ Auto-saves every 3 seconds • Cloud storage • Images preserved • Works across devices
     </div>
 </div>
 <div id="toastMsg" class="toast-message"></div>
@@ -258,9 +286,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
     // ============ SUPABASE CONFIGURATION ============
-    // You'll get these from your Supabase project
-    const SUPABASE_URL = 'https://yattwpdxcfixvqngnaok.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_P03xMIu_SPnFh-uPrr98ug_Ez7q24pf';
+    // ⚠️ IMPORTANT: Replace these with your actual Supabase credentials!
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';  // Get from https://supabase.com/dashboard/project/_/settings/api
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';  // Your anon public key
     
     // Initialize Supabase client
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -270,6 +298,7 @@
     let currentUserId = null;
     let autoSaveTimer = null;
     let isSaving = false;
+    let contentLoaded = false;
     
     // ============ HELPER FUNCTIONS ============
     function showMessage(msg, isError = false) {
@@ -277,25 +306,27 @@
         toast.textContent = msg;
         toast.style.background = isError ? '#d32f2f' : '#1e272e';
         toast.style.opacity = '1';
-        setTimeout(() => toast.style.opacity = '0', 2500);
+        setTimeout(() => toast.style.opacity = '0', 3000);
     }
     
-    function updateStatus(text, isSaving = false) {
+    function updateStatus(text, isError = false) {
         const statusText = document.getElementById('statusText');
         const dot = document.querySelector('.status-dot');
-        if (isSaving) {
-            statusText.innerHTML = '💾 ' + text;
-            dot.style.background = '#ff9800';
-        } else if (text.includes('error') || text.includes('Error')) {
+        if (isError) {
             statusText.innerHTML = '⚠️ ' + text;
             dot.style.background = '#f44336';
-        } else {
+        } else if (text.includes('Saving')) {
+            statusText.innerHTML = '💾 ' + text;
+            dot.style.background = '#ff9800';
+        } else if (text.includes('Loaded') || text.includes('Ready')) {
             statusText.innerHTML = '✅ ' + text;
             dot.style.background = '#4caf50';
+        } else {
+            statusText.innerHTML = '🔄 ' + text;
         }
     }
     
-    // Generate or retrieve user ID from localStorage (persistent across sessions on same device)
+    // Generate or retrieve user ID from localStorage
     function getUserId() {
         let userId = localStorage.getItem('whiteboard_user_id');
         if (!userId) {
@@ -307,9 +338,9 @@
     
     // ============ CLOUD STORAGE FUNCTIONS ============
     async function saveContentToCloud(content) {
-        if (isSaving) return;
+        if (isSaving || !contentLoaded) return;
         isSaving = true;
-        updateStatus('Saving...', true);
+        updateStatus('Saving...');
         
         try {
             const { data, error } = await supabase
@@ -327,7 +358,7 @@
             showMessage('✨ Content saved to cloud');
         } catch (error) {
             console.error('Save error:', error);
-            updateStatus('Error saving - check Supabase setup');
+            updateStatus('Error saving', true);
             showMessage('Failed to save: ' + error.message, true);
         } finally {
             isSaving = false;
@@ -341,34 +372,39 @@
                 .from('whiteboard_contents')
                 .select('content_html')
                 .eq('user_id', currentUserId)
-                .single();
+                .maybeSingle();  // Use maybeSingle() instead of single() to avoid errors
             
-            if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
-                throw error;
-            }
+            if (error) throw error;
             
             if (data && data.content_html) {
                 editor.innerHTML = data.content_html;
                 updateStatus('Loaded from cloud');
                 showMessage('📀 Your whiteboard loaded from cloud');
+                console.log('Content loaded successfully');
             } else {
                 // First time user - set default content
                 editor.innerHTML = `
                     <p><strong>✨ Welcome to your Persistent Whiteboard!</strong></p>
                     <p>This content is saved to the <strong>cloud</strong>.</p>
                     <p>🔹 Try refreshing the page - your content will reappear</p>
-                    <p>🔹 Open on another device with same user ID</p>
+                    <p>🔹 Open on another device - same content appears</p>
                     <p>🔹 Images are stored permanently</p>
                     <p><em>Start typing anything - auto-saves every 3 seconds!</em></p>
+                    <p><br></p>
+                    <p>📝 <u>Test this:</u> Type something here, then refresh the page → it stays!</p>
                 `;
                 updateStatus('Ready - will auto-save');
                 // Save initial content
                 await saveContentToCloud(editor.innerHTML);
             }
+            contentLoaded = true;
         } catch (error) {
             console.error('Load error:', error);
-            updateStatus('Error loading from cloud');
+            updateStatus('Error loading', true);
             showMessage('Failed to load: ' + error.message, true);
+            // Still allow editing even if load fails
+            editor.innerHTML = '<p>⚠️ Could not load from cloud. Your content will still save locally for this session.</p><p>Check Supabase credentials in the code.</p>';
+            contentLoaded = true;
         }
     }
     
@@ -377,10 +413,10 @@
         if (autoSaveTimer) clearTimeout(autoSaveTimer);
         autoSaveTimer = setTimeout(() => {
             const content = editor.innerHTML;
-            if (content && content !== '<br>') {
+            if (content && content !== '<br>' && content !== '<div><br></div>') {
                 saveContentToCloud(content);
             }
-        }, 3000); // Save 3 seconds after last edit
+        }, 3000);
     }
     
     // ============ RICH TEXT EDITING ============
@@ -399,6 +435,11 @@
         const file = e.target.files[0];
         if (!file) return;
         
+        if (!file.type.startsWith('image/')) {
+            showMessage('Please select an image file', true);
+            return;
+        }
+        
         const reader = new FileReader();
         reader.onload = (ev) => {
             editor.focus();
@@ -406,6 +447,7 @@
             img.src = ev.target.result;
             img.style.maxWidth = '100%';
             img.style.borderRadius = '12px';
+            img.style.margin = '8px 0';
             document.execCommand('insertHTML', false, img.outerHTML);
             triggerAutoSave();
             showMessage('🖼️ Image inserted');
@@ -423,11 +465,14 @@
                 const blob = item.getAsFile();
                 const reader = new FileReader();
                 reader.onload = (ev) => {
+                    editor.focus();
                     const img = document.createElement('img');
                     img.src = ev.target.result;
                     img.style.maxWidth = '100%';
+                    img.style.borderRadius = '12px';
                     document.execCommand('insertHTML', false, img.outerHTML);
                     triggerAutoSave();
+                    showMessage('📸 Image pasted from clipboard');
                 };
                 reader.readAsDataURL(blob);
                 break;
@@ -444,30 +489,68 @@
         saveContentToCloud(editor.innerHTML);
     });
     
-    // Link navigation
-    document.getElementById('goBtn').addEventListener('click', () => {
+    // ============ FIX: GO BUTTON NAVIGATION ============
+    function navigateToLink() {
         let url = document.getElementById('urlInput').value.trim();
-        if (!url) return;
-        if (!url.startsWith('http')) url = 'https://' + url;
-        window.open(url, '_blank');
+        
+        if (!url) {
+            showMessage('Please enter a website URL', true);
+            return;
+        }
+        
+        // Add https:// if no protocol specified
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://' + url;
+        }
+        
+        // Validate URL format
+        try {
+            new URL(url);
+            // Open in new tab
+            window.open(url, '_blank', 'noopener,noreferrer');
+            showMessage(`Opening: ${url}`);
+        } catch (e) {
+            showMessage('Invalid URL. Example: google.com or https://example.com', true);
+        }
+    }
+    
+    // Add click event to Go button
+    const goBtn = document.getElementById('goBtn');
+    goBtn.addEventListener('click', navigateToLink);
+    
+    // Add enter key support for URL input
+    const urlInput = document.getElementById('urlInput');
+    urlInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            navigateToLink();
+        }
     });
     
     // Keyboard shortcuts
     editor.addEventListener('keydown', (e) => {
-        if (e.ctrlKey || e.metaKey) {
-            if (e.key === 's') {
-                e.preventDefault();
-                saveContentToCloud(editor.innerHTML);
-                showMessage('Manually saved!');
-            }
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            saveContentToCloud(editor.innerHTML);
+            showMessage('💾 Manually saved!');
         }
     });
     
     // ============ INITIALIZATION ============
     async function init() {
         currentUserId = getUserId();
+        console.log('User ID:', currentUserId);
+        console.log('Supabase URL:', SUPABASE_URL);
+        
+        // Check if Supabase credentials are configured
+        if (SUPABASE_URL === 'https://yattwpdxcfixvqngnaok.supabase.co' || SUPABASE_ANON_KEY === 'sb_publishable_P03xMIu_SPnFh-uPrr98ug_Ez7q24pf') {
+            console.error('⚠️ Please configure your Supabase credentials!');
+            editor.innerHTML = '<p style="color: red; padding: 20px;"><strong>⚠️ Configuration Required</strong></p><p>Please replace SUPABASE_URL and SUPABASE_ANON_KEY in the code with your actual Supabase credentials.</p><p>Get them from: https://supabase.com/dashboard/project/_/settings/api</p>';
+            showMessage('⚠️ Please configure Supabase credentials in the code', true);
+            return;
+        }
+        
         await loadContentFromCloud();
-        showMessage('Connected to cloud • Auto-saving enabled');
     }
     
     init();
