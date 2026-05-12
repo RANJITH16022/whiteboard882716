@@ -267,7 +267,8 @@
         <span class="sync-indicator" id="syncIndicator"></span>
     </div>
     <div>
-        <span class="online-count" id="onlineCount">🌐 Shared Whiteboard</span>
+        <button class="save-btn" id="manualSaveBtn">💾 Save Now</button>
+        <span class="online-count" id="onlineCount">🌍 Shared Board</span>
     </div>
 </div>
 
@@ -305,8 +306,8 @@
 <script>
     // ============ SUPABASE CONFIGURATION ============
     // ⚠️ IMPORTANT: Replace these with your actual Supabase credentials!
-    const MY_SUPABASE_URL = 'https://yattwpdxcfixvqngnaok.supabase.co';  // Get from https://supabase.com/dashboard/project/_/settings/api
-    const MY_SUPABASE_ANON_KEY = 'sb_publishable_P03xMIu_SPnFh-uPrr98ug_Ez7q24pf';  // Your anon public key
+    const MY_SUPABASE_URL = 'YOUR_SUPABASE_URL';  // Get from https://supabase.com/dashboard/project/_/settings/api
+    const MY_SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';  // Your anon public key
     
     // SHARED WHITEBOARD ID - everyone sees the same board
     const SHARED_BOARD_ID = 'main_whiteboard';  // All devices use this same ID
@@ -324,6 +325,7 @@
     // ============ HELPER FUNCTIONS ============
     function showMessage(msg, isError = false) {
         const toast = document.getElementById('toastMsg');
+        if (!toast) return;
         toast.textContent = msg;
         toast.style.background = isError ? '#d32f2f' : '#1e272e';
         toast.style.opacity = '1';
@@ -333,18 +335,20 @@
     function updateStatus(text, isError = false) {
         const statusText = document.getElementById('statusText');
         const dot = document.querySelector('.status-dot');
+        if (!statusText) return;
+        
         if (isError) {
             statusText.innerHTML = '⚠️ ' + text;
-            dot.style.background = '#f44336';
+            if (dot) dot.style.background = '#f44336';
         } else if (text.includes('Saving')) {
             statusText.innerHTML = '💾 ' + text;
-            dot.style.background = '#ff9800';
+            if (dot) dot.style.background = '#ff9800';
         } else if (text.includes('Syncing') || text.includes('Real-time')) {
             statusText.innerHTML = '🔄 ' + text;
-            dot.style.background = '#2196f3';
+            if (dot) dot.style.background = '#2196f3';
         } else if (text.includes('Loaded') || text.includes('Connected')) {
             statusText.innerHTML = '✅ ' + text;
-            dot.style.background = '#4caf50';
+            if (dot) dot.style.background = '#4caf50';
         } else {
             statusText.innerHTML = '🔄 ' + text;
         }
@@ -352,6 +356,8 @@
     
     function updateSyncIndicator(lastSyncTime) {
         const indicator = document.getElementById('syncIndicator');
+        if (!indicator) return;
+        
         if (lastSyncTime) {
             const timeAgo = Math.floor((Date.now() - lastSyncTime) / 1000);
             if (timeAgo < 5) {
@@ -505,35 +511,46 @@
         triggerAutoSave();
     }
     
-    document.getElementById('boldBtn').addEventListener('click', () => applyStyle('bold'));
-    document.getElementById('italicBtn').addEventListener('click', () => applyStyle('italic'));
-    document.getElementById('underlineBtn').addEventListener('click', () => applyStyle('underline'));
+    // Safely add event listeners with null checks
+    const boldBtn = document.getElementById('boldBtn');
+    const italicBtn = document.getElementById('italicBtn');
+    const underlineBtn = document.getElementById('underlineBtn');
+    const imageUpload = document.getElementById('imageUpload');
+    const goBtn = document.getElementById('goBtn');
+    const urlInputElement = document.getElementById('urlInput');
+    const manualSaveBtn = document.getElementById('manualSaveBtn');
+    
+    if (boldBtn) boldBtn.addEventListener('click', () => applyStyle('bold'));
+    if (italicBtn) italicBtn.addEventListener('click', () => applyStyle('italic'));
+    if (underlineBtn) underlineBtn.addEventListener('click', () => applyStyle('underline'));
     
     // Image insertion
-    document.getElementById('imageUpload').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        if (!file.type.startsWith('image/')) {
-            showMessage('Please select an image file', true);
-            return;
-        }
-        
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            editor.focus();
-            const img = document.createElement('img');
-            img.src = ev.target.result;
-            img.style.maxWidth = '100%';
-            img.style.borderRadius = '12px';
-            img.style.margin = '8px 0';
-            document.execCommand('insertHTML', false, img.outerHTML);
-            triggerAutoSave();
-            showMessage('🖼️ Image inserted - will sync to all devices');
-        };
-        reader.readAsDataURL(file);
-        e.target.value = '';
-    });
+    if (imageUpload) {
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            if (!file.type.startsWith('image/')) {
+                showMessage('Please select an image file', true);
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                editor.focus();
+                const img = document.createElement('img');
+                img.src = ev.target.result;
+                img.style.maxWidth = '100%';
+                img.style.borderRadius = '12px';
+                img.style.margin = '8px 0';
+                document.execCommand('insertHTML', false, img.outerHTML);
+                triggerAutoSave();
+                showMessage('🖼️ Image inserted - will sync to all devices');
+            };
+            reader.readAsDataURL(file);
+            e.target.value = '';
+        });
+    }
     
     // Paste images from clipboard
     editor.addEventListener('paste', (e) => {
@@ -573,7 +590,7 @@
     
     // ============ GO BUTTON NAVIGATION ============
     function navigateToLink() {
-        let url = document.getElementById('urlInput').value.trim();
+        let url = urlInputElement ? urlInputElement.value.trim() : '';
         
         if (!url) {
             showMessage('Please enter a website URL', true);
@@ -593,22 +610,24 @@
         }
     }
     
-    const goBtn = document.getElementById('goBtn');
-    goBtn.addEventListener('click', navigateToLink);
+    if (goBtn) goBtn.addEventListener('click', navigateToLink);
     
-    const urlInput = document.getElementById('urlInput');
-    urlInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            navigateToLink();
-        }
-    });
+    if (urlInputElement) {
+        urlInputElement.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                navigateToLink();
+            }
+        });
+    }
     
     // Manual save button
-    document.getElementById('manualSaveBtn').addEventListener('click', () => {
-        saveContentToCloud(editor.innerHTML);
-        showMessage('💾 Manually synced to all devices!');
-    });
+    if (manualSaveBtn) {
+        manualSaveBtn.addEventListener('click', () => {
+            saveContentToCloud(editor.innerHTML);
+            showMessage('💾 Manually synced to all devices!');
+        });
+    }
     
     // Keyboard shortcuts
     editor.addEventListener('keydown', (e) => {
@@ -638,9 +657,11 @@
         console.log('Shared Board ID:', SHARED_BOARD_ID);
         
         // Check if Supabase credentials are configured
-        if (MY_SUPABASE_URL === 'YOUR_SUPABASE_URL' || MY_SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
+        if (MY_SUPABASE_URL === 'https://yattwpdxcfixvqngnaok.supabase.co' || MY_SUPABASE_ANON_KEY === 'sb_publishable_P03xMIu_SPnFh-uPrr98ug_Ez7q24pf') {
             console.error('⚠️ Please configure your Supabase credentials!');
-            editor.innerHTML = '<div style="color: #d32f2f; padding: 20px; background: #ffebee; border-radius: 12px;"><strong>⚠️ Configuration Required</strong><br><br>Please replace <code>YOUR_SUPABASE_URL</code> and <code>YOUR_SUPABASE_ANON_KEY</code> in the code with your actual Supabase credentials.<br><br>📌 Get them from: <a href="https://supabase.com/dashboard/project/_/settings/api" target="_blank">Supabase Dashboard → Project Settings → API</a></div>';
+            if (editor) {
+                editor.innerHTML = '<div style="color: #d32f2f; padding: 20px; background: #ffebee; border-radius: 12px;"><strong>⚠️ Configuration Required</strong><br><br>Please replace <code>YOUR_SUPABASE_URL</code> and <code>YOUR_SUPABASE_ANON_KEY</code> in the code with your actual Supabase credentials.<br><br>📌 Get them from: <a href="https://supabase.com/dashboard/project/_/settings/api" target="_blank">Supabase Dashboard → Project Settings → API</a></div>';
+            }
             showMessage('⚠️ Please configure Supabase credentials in the code', true);
             return;
         }
@@ -656,7 +677,9 @@
             await loadContentFromCloud();
         } else {
             console.error('Failed to initialize Supabase');
-            editor.innerHTML = '<div style="color: #d32f2f; padding: 20px;"><strong>Error:</strong> Failed to load Supabase. Please check your internet connection.</div>';
+            if (editor) {
+                editor.innerHTML = '<div style="color: #d32f2f; padding: 20px;"><strong>Error:</strong> Failed to load Supabase. Please check your internet connection.</div>';
+            }
             showMessage('Failed to initialize Supabase', true);
         }
     }
