@@ -306,8 +306,8 @@
 <script>
     // ============ SUPABASE CONFIGURATION ============
     // ⚠️ IMPORTANT: Replace these with your actual Supabase credentials!
-    const MY_SUPABASE_URL = 'YOUR_SUPABASE_URL';  // Get from https://supabase.com/dashboard/project/_/settings/api
-    const MY_SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';  // Your anon public key
+    const MY_SUPABASE_URL = 'https://yattwpdxcfixvqngnaok.supabase.coL';  // Get from https://supabase.com/dashboard/project/_/settings/api
+    const MY_SUPABASE_ANON_KEY = 'sb_publishable_P03xMIu_SPnFh-uPrr98ug_Ez7q24pfY';  // Your anon public key
     
     // SHARED WHITEBOARD ID - everyone sees the same board
     const SHARED_BOARD_ID = 'main_whiteboard';  // All devices use this same ID
@@ -657,7 +657,7 @@
         console.log('Shared Board ID:', SHARED_BOARD_ID);
         
         // Check if Supabase credentials are configured
-        if (MY_SUPABASE_URL === 'https://yattwpdxcfixvqngnaok.supabase.co' || MY_SUPABASE_ANON_KEY === 'sb_publishable_P03xMIu_SPnFh-uPrr98ug_Ez7q24pf') {
+        if (MY_SUPABASE_URL === 'YOUR_SUPABASE_URL' || MY_SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
             console.error('⚠️ Please configure your Supabase credentials!');
             if (editor) {
                 editor.innerHTML = '<div style="color: #d32f2f; padding: 20px; background: #ffebee; border-radius: 12px;"><strong>⚠️ Configuration Required</strong><br><br>Please replace <code>YOUR_SUPABASE_URL</code> and <code>YOUR_SUPABASE_ANON_KEY</code> in the code with your actual Supabase credentials.<br><br>📌 Get them from: <a href="https://supabase.com/dashboard/project/_/settings/api" target="_blank">Supabase Dashboard → Project Settings → API</a></div>';
