@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Persistent Whiteboard | Cloud Storage</title>
+    <title>Shared Whiteboard | Real-time Sync Across Devices</title>
     <style>
         * {
             margin: 0;
@@ -43,6 +43,15 @@
             border-radius: 50%;
             background: #4caf50;
             animation: pulse 2s infinite;
+        }
+
+        .online-count {
+            background: #e8f5e9;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #2e7d32;
         }
 
         @keyframes pulse {
@@ -204,7 +213,7 @@
         }
 
         .rich-editor:empty:before {
-            content: "✏️ Start typing... (auto-saves to cloud)";
+            content: "✏️ Start typing... (syncs across all devices)";
             color: #afbbca;
         }
 
@@ -242,15 +251,24 @@
             font-weight: 500;
             white-space: nowrap;
         }
+
+        .sync-indicator {
+            font-size: 0.7rem;
+            margin-left: 10px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
 <div class="status-bar">
     <div class="status-indicator">
         <span class="status-dot"></span>
-        <span id="statusText">Loading from cloud...</span>
+        <span id="statusText">Connecting to shared whiteboard...</span>
+        <span class="sync-indicator" id="syncIndicator"></span>
     </div>
-    <button class="save-btn" id="manualSaveBtn">💾 Save Now</button>
+    <div>
+        <span class="online-count" id="onlineCount">🌐 Shared Whiteboard</span>
+    </div>
 </div>
 
 <div class="whiteboard">
@@ -274,11 +292,11 @@
 
     <div class="editor-container">
         <div id="richEditor" class="rich-editor" contenteditable="true">
-            <p>Loading your whiteboard from cloud...</p>
+            <p>Loading shared whiteboard...</p>
         </div>
     </div>
     <div class="footer-note">
-        ✅ Auto-saves every 3 seconds • Cloud storage • Images preserved • Works across devices
+        🌍 SHARED WHITEBOARD • Changes appear on all devices in real-time • Auto-saves to cloud
     </div>
 </div>
 <div id="toastMsg" class="toast-message"></div>
@@ -290,24 +308,18 @@
     const MY_SUPABASE_URL = 'https://yattwpdxcfixvqngnaok.supabase.co';  // Get from https://supabase.com/dashboard/project/_/settings/api
     const MY_SUPABASE_ANON_KEY = 'sb_publishable_P03xMIu_SPnFh-uPrr98ug_Ez7q24pf';  // Your anon public key
     
-    // Initialize Supabase client with unique variable name to avoid conflicts
-    let supabaseClient = null;
+    // SHARED WHITEBOARD ID - everyone sees the same board
+    const SHARED_BOARD_ID = 'main_whiteboard';  // All devices use this same ID
     
-    // Wait for Supabase to load
-    function initSupabase() {
-        if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
-            supabaseClient = window.supabase.createClient(MY_SUPABASE_URL, MY_SUPABASE_ANON_KEY);
-            return true;
-        }
-        return false;
-    }
+    let supabaseClient = null;
+    let channel = null;
+    let isUpdatingFromSync = false;
+    let lastSavedContent = '';
     
     // ============ GLOBAL VARIABLES ============
     const editor = document.getElementById('richEditor');
-    let currentUserId = null;
     let autoSaveTimer = null;
     let isSaving = false;
-    let contentLoaded = false;
     
     // ============ HELPER FUNCTIONS ============
     function showMessage(msg, isError = false) {
@@ -327,7 +339,10 @@
         } else if (text.includes('Saving')) {
             statusText.innerHTML = '💾 ' + text;
             dot.style.background = '#ff9800';
-        } else if (text.includes('Loaded') || text.includes('Ready')) {
+        } else if (text.includes('Syncing') || text.includes('Real-time')) {
+            statusText.innerHTML = '🔄 ' + text;
+            dot.style.background = '#2196f3';
+        } else if (text.includes('Loaded') || text.includes('Connected')) {
             statusText.innerHTML = '✅ ' + text;
             dot.style.background = '#4caf50';
         } else {
@@ -335,36 +350,81 @@
         }
     }
     
-    // Generate or retrieve user ID from localStorage
-    function getUserId() {
-        let userId = localStorage.getItem('whiteboard_user_id');
-        if (!userId) {
-            userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            localStorage.setItem('whiteboard_user_id', userId);
+    function updateSyncIndicator(lastSyncTime) {
+        const indicator = document.getElementById('syncIndicator');
+        if (lastSyncTime) {
+            const timeAgo = Math.floor((Date.now() - lastSyncTime) / 1000);
+            if (timeAgo < 5) {
+                indicator.innerHTML = '● Live';
+                indicator.style.color = '#4caf50';
+            } else if (timeAgo < 30) {
+                indicator.innerHTML = `○ ${timeAgo}s ago`;
+                indicator.style.color = '#ff9800';
+            } else {
+                indicator.innerHTML = `○ ${timeAgo}s ago`;
+                indicator.style.color = '#999';
+            }
         }
-        return userId;
+    }
+    
+    // ============ REALTIME SYNC WITH SUPABASE ============
+    async function setupRealtimeSync() {
+        if (!supabaseClient) return;
+        
+        // Subscribe to changes on the whiteboard table
+        channel = supabaseClient
+            .channel('whiteboard-sync')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'shared_whiteboard',
+                    filter: `board_id=eq.${SHARED_BOARD_ID}`
+                },
+                (payload) => {
+                    console.log('Real-time update received:', payload);
+                    if (!isUpdatingFromSync && payload.new && payload.new.content_html) {
+                        const newContent = payload.new.content_html;
+                        if (newContent !== editor.innerHTML) {
+                            isUpdatingFromSync = true;
+                            editor.innerHTML = newContent;
+                            lastSavedContent = newContent;
+                            isUpdatingFromSync = false;
+                            showMessage('🔄 Content updated from another device');
+                            updateStatus('Synced from cloud');
+                            updateSyncIndicator(Date.now());
+                        }
+                    }
+                }
+            )
+            .subscribe();
+            
+        console.log('Real-time sync enabled');
     }
     
     // ============ CLOUD STORAGE FUNCTIONS ============
     async function saveContentToCloud(content) {
-        if (isSaving || !contentLoaded || !supabaseClient) return;
+        if (isSaving || !supabaseClient) return;
         isSaving = true;
-        updateStatus('Saving...');
+        updateStatus('Saving & syncing...');
         
         try {
             const { data, error } = await supabaseClient
-                .from('whiteboard_contents')
+                .from('shared_whiteboard')
                 .upsert({
-                    user_id: currentUserId,
+                    board_id: SHARED_BOARD_ID,
                     content_html: content,
-                    updated_at: new Date().toISOString()
+                    updated_at: new Date().toISOString(),
+                    updated_by: localStorage.getItem('device_id') || 'anonymous'
                 }, {
-                    onConflict: 'user_id'
+                    onConflict: 'board_id'
                 });
             
             if (error) throw error;
-            updateStatus('Saved to cloud');
-            showMessage('✨ Content saved to cloud');
+            lastSavedContent = content;
+            updateStatus('Saved & synced to all devices');
+            updateSyncIndicator(Date.now());
         } catch (error) {
             console.error('Save error:', error);
             updateStatus('Error saving', true);
@@ -380,47 +440,50 @@
             return;
         }
         
-        updateStatus('Loading from cloud...');
+        updateStatus('Loading shared whiteboard...');
         try {
             const { data, error } = await supabaseClient
-                .from('whiteboard_contents')
-                .select('content_html')
-                .eq('user_id', currentUserId)
+                .from('shared_whiteboard')
+                .select('content_html, updated_at')
+                .eq('board_id', SHARED_BOARD_ID)
                 .maybeSingle();
             
             if (error) throw error;
             
             if (data && data.content_html) {
                 editor.innerHTML = data.content_html;
-                updateStatus('Loaded from cloud');
-                showMessage('📀 Your whiteboard loaded from cloud');
-                console.log('Content loaded successfully');
+                lastSavedContent = data.content_html;
+                updateStatus('Loaded shared whiteboard');
+                showMessage('🌍 Shared whiteboard loaded from cloud');
+                console.log('Content loaded, last updated:', data.updated_at);
             } else {
-                // First time user - set default content
+                // First time - create shared whiteboard
                 editor.innerHTML = `
-                    <p><strong>✨ Welcome to your Persistent Whiteboard!</strong></p>
-                    <p>This content is saved to the <strong>cloud</strong>.</p>
-                    <p>🔹 Try refreshing the page - your content will reappear</p>
-                    <p>🔹 Open on another device - same content appears</p>
-                    <p>🔹 Images are stored permanently</p>
-                    <p><em>Start typing anything - auto-saves every 3 seconds!</em></p>
+                    <p><strong>🌍 Welcome to the SHARED Whiteboard!</strong></p>
+                    <p>This whiteboard is <strong>synced across all devices</strong>.</p>
+                    <p>🔹 Open this link on multiple devices - they all see the same content</p>
+                    <p>🔹 Changes appear in <strong>real-time</strong> on all devices</p>
+                    <p>🔹 Images and formatting are preserved</p>
                     <p><br></p>
-                    <p>📝 <u>Test this:</u> Type something here, then refresh the page → it stays!</p>
+                    <p><em>✏️ Try typing here, then open this page on another device...</em></p>
+                    <p><em>🔄 Changes will appear automatically!</em></p>
                 `;
-                updateStatus('Ready - will auto-save');
-                // Save initial content
+                updateStatus('Creating shared whiteboard');
+                // Save initial content to cloud
                 await saveContentToCloud(editor.innerHTML);
+                lastSavedContent = editor.innerHTML;
             }
-            contentLoaded = true;
+            
+            // Setup real-time sync after loading
+            await setupRealtimeSync();
+            
         } catch (error) {
             console.error('Load error:', error);
             updateStatus('Error loading', true);
             showMessage('Failed to load: ' + error.message, true);
-            // Still allow editing even if load fails
-            if (editor.innerHTML === '<p>Loading your whiteboard from cloud...</p>') {
-                editor.innerHTML = '<p>⚠️ Could not load from cloud. Please check Supabase credentials.</p><p>Make sure to replace YOUR_SUPABASE_URL and YOUR_SUPABASE_ANON_KEY in the code.</p>';
+            if (editor.innerHTML === '<p>Loading shared whiteboard...</p>') {
+                editor.innerHTML = '<p>⚠️ Could not load shared whiteboard. Please check Supabase credentials.</p>';
             }
-            contentLoaded = true;
         }
     }
     
@@ -429,10 +492,10 @@
         if (autoSaveTimer) clearTimeout(autoSaveTimer);
         autoSaveTimer = setTimeout(() => {
             const content = editor.innerHTML;
-            if (content && content !== '<br>' && content !== '<div><br></div>') {
+            if (content && content !== '<br>' && content !== '<div><br></div>' && content !== lastSavedContent) {
                 saveContentToCloud(content);
             }
-        }, 3000);
+        }, 2000); // Save 2 seconds after last edit for faster sync
     }
     
     // ============ RICH TEXT EDITING ============
@@ -466,7 +529,7 @@
             img.style.margin = '8px 0';
             document.execCommand('insertHTML', false, img.outerHTML);
             triggerAutoSave();
-            showMessage('🖼️ Image inserted');
+            showMessage('🖼️ Image inserted - will sync to all devices');
         };
         reader.readAsDataURL(file);
         e.target.value = '';
@@ -488,7 +551,7 @@
                     img.style.borderRadius = '12px';
                     document.execCommand('insertHTML', false, img.outerHTML);
                     triggerAutoSave();
-                    showMessage('📸 Image pasted from clipboard');
+                    showMessage('📸 Image pasted - syncing to all devices');
                 };
                 reader.readAsDataURL(blob);
                 break;
@@ -497,12 +560,15 @@
     });
     
     // Listen to edits
-    editor.addEventListener('input', () => triggerAutoSave());
-    editor.addEventListener('keyup', () => triggerAutoSave());
-    
-    // Manual save button
-    document.getElementById('manualSaveBtn').addEventListener('click', () => {
-        saveContentToCloud(editor.innerHTML);
+    editor.addEventListener('input', () => {
+        if (!isUpdatingFromSync) {
+            triggerAutoSave();
+        }
+    });
+    editor.addEventListener('keyup', () => {
+        if (!isUpdatingFromSync) {
+            triggerAutoSave();
+        }
     });
     
     // ============ GO BUTTON NAVIGATION ============
@@ -514,15 +580,12 @@
             return;
         }
         
-        // Add https:// if no protocol specified
         if (!url.startsWith('http://') && !url.startsWith('https://')) {
             url = 'https://' + url;
         }
         
-        // Validate URL format
         try {
             new URL(url);
-            // Open in new tab
             window.open(url, '_blank', 'noopener,noreferrer');
             showMessage(`Opening: ${url}`);
         } catch (e) {
@@ -530,11 +593,9 @@
         }
     }
     
-    // Add click event to Go button
     const goBtn = document.getElementById('goBtn');
     goBtn.addEventListener('click', navigateToLink);
     
-    // Add enter key support for URL input
     const urlInput = document.getElementById('urlInput');
     urlInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
@@ -543,20 +604,38 @@
         }
     });
     
+    // Manual save button
+    document.getElementById('manualSaveBtn').addEventListener('click', () => {
+        saveContentToCloud(editor.innerHTML);
+        showMessage('💾 Manually synced to all devices!');
+    });
+    
     // Keyboard shortcuts
     editor.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key === 's') {
             e.preventDefault();
             saveContentToCloud(editor.innerHTML);
-            showMessage('💾 Manually saved!');
+            showMessage('💾 Manually synced to all devices!');
         }
     });
     
     // ============ INITIALIZATION ============
+    function initSupabase() {
+        if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+            supabaseClient = window.supabase.createClient(MY_SUPABASE_URL, MY_SUPABASE_ANON_KEY);
+            return true;
+        }
+        return false;
+    }
+    
     async function init() {
-        currentUserId = getUserId();
-        console.log('User ID:', currentUserId);
-        console.log('Supabase URL:', MY_SUPABASE_URL);
+        // Generate device ID for tracking
+        if (!localStorage.getItem('device_id')) {
+            localStorage.setItem('device_id', 'device_' + Math.random().toString(36).substr(2, 9));
+        }
+        
+        console.log('Device ID:', localStorage.getItem('device_id'));
+        console.log('Shared Board ID:', SHARED_BOARD_ID);
         
         // Check if Supabase credentials are configured
         if (MY_SUPABASE_URL === 'YOUR_SUPABASE_URL' || MY_SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
