@@ -43,7 +43,7 @@
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            background: #ff9800;
+            background: #4caf50;
             animation: pulse 2s infinite;
         }
 
@@ -311,7 +311,7 @@
         </div>
     </div>
     <div class="footer-note">
-        🌍 SHARED WHITEBOARD • Auto-syncs every 5 seconds • Works across all devices
+        🌍 SHARED WHITEBOARD • Auto-syncs every 10 seconds • Works across all devices
     </div>
 </div>
 <div id="toastMsg" class="toast-message"></div>
@@ -321,8 +321,10 @@
     // ============ GLOBAL VARIABLES ============
     let supabaseClient = null;
     let isUpdatingFromSync = false;
-    let lastSavedContent = '';
+    let isSavingToCloud = false;
+    let lastKnownContent = '';
     let pollingInterval = null;
+    let lastUpdateTimestamp = 0;
     
     const SHARED_BOARD_ID = 'main_whiteboard';
     const editor = document.getElementById('richEditor');
@@ -334,7 +336,7 @@
         toast.textContent = msg;
         toast.style.background = isError ? '#d32f2f' : '#1e272e';
         toast.style.opacity = '1';
-        setTimeout(() => toast.style.opacity = '0', 3000);
+        setTimeout(() => toast.style.opacity = '0', 2000);
     }
     
     function updateStatus(text, isError = false) {
@@ -345,25 +347,32 @@
         if (isError) {
             statusText.innerHTML = '⚠️ ' + text;
             if (dot) dot.style.background = '#f44336';
-        } else if (text.includes('Saving') || text.includes('Syncing')) {
-            statusText.innerHTML = '🔄 ' + text;
+        } else if (text.includes('Saving')) {
+            statusText.innerHTML = '💾 ' + text;
             if (dot) dot.style.background = '#ff9800';
-        } else if (text.includes('Connected')) {
+        } else {
             statusText.innerHTML = '✅ ' + text;
             if (dot) dot.style.background = '#4caf50';
-        } else {
-            statusText.innerHTML = '🔄 ' + text;
         }
     }
     
-    // Save to cloud
-    async function saveContentToCloud(content) {
-        if (!supabaseClient) {
-            console.log('Supabase not connected');
-            return;
+    // Get current editor content (normalized)
+    function getCurrentContent() {
+        return editor.innerHTML.trim();
+    }
+    
+    // Save to cloud (only if content actually changed)
+    async function saveContentToCloud(content, isManual = false) {
+        if (!supabaseClient) return false;
+        if (isSavingToCloud) return false;
+        
+        // Don't save if content hasn't changed
+        if (content === lastKnownContent && !isManual) {
+            return false;
         }
         
-        updateStatus('Syncing...');
+        isSavingToCloud = true;
+        if (!isManual) updateStatus('Saving...');
         
         try {
             const { error } = await supabaseClient
@@ -377,79 +386,129 @@
                 });
             
             if (error) throw error;
-            lastSavedContent = content;
+            
+            lastKnownContent = content;
+            lastUpdateTimestamp = Date.now();
             updateStatus('Connected');
-            showMessage('✓ Synced to cloud');
+            if (isManual) showMessage('✓ Manually synced!');
+            
+            return true;
         } catch (error) {
             console.error('Save error:', error);
-            updateStatus('Save failed', true);
+            updateStatus('Error', true);
             showMessage('Failed to sync: ' + error.message, true);
+            return false;
+        } finally {
+            isSavingToCloud = false;
         }
     }
     
-    // Load from cloud (polling for changes)
+    // Load from cloud (only if content is newer)
     async function loadContentFromCloud() {
         if (!supabaseClient) return;
+        if (isUpdatingFromSync) return;
+        if (isSavingToCloud) return;
         
         try {
             const { data, error } = await supabaseClient
                 .from('shared_whiteboard')
-                .select('content_html')
+                .select('content_html, updated_at')
                 .eq('board_id', SHARED_BOARD_ID)
                 .maybeSingle();
             
             if (error) throw error;
             
             if (data && data.content_html) {
-                if (!isUpdatingFromSync && data.content_html !== editor.innerHTML) {
+                const cloudContent = data.content_html;
+                const currentContent = getCurrentContent();
+                
+                // Only update if cloud content is different AND not the same as what we just saved
+                if (cloudContent !== currentContent && cloudContent !== lastKnownContent) {
+                    console.log('New content from cloud, updating...');
                     isUpdatingFromSync = true;
-                    editor.innerHTML = data.content_html;
-                    lastSavedContent = data.content_html;
+                    
+                    // Save current scroll position
+                    const scrollPos = editor.scrollTop;
+                    const selection = window.getSelection();
+                    const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+                    
+                    editor.innerHTML = cloudContent;
+                    lastKnownContent = cloudContent;
+                    
+                    // Restore cursor position if possible (simplified)
+                    if (range && editor.contains(range.commonAncestorContainer)) {
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                    }
+                    editor.scrollTop = scrollPos;
+                    
                     isUpdatingFromSync = false;
                     showMessage('🔄 Content updated from another device');
-                    updateStatus('Connected');
+                } else if (!lastKnownContent && cloudContent) {
+                    // First load
+                    editor.innerHTML = cloudContent;
+                    lastKnownContent = cloudContent;
+                } else if (!data.content_html) {
+                    // First time - set initial content
+                    const initialContent = `
+                        <p><strong>🌍 Welcome to the SHARED Whiteboard!</strong></p>
+                        <p>This whiteboard is <strong>synced across all devices</strong>.</p>
+                        <p>🔹 Open this link on multiple devices - they all see the same content</p>
+                        <p>🔹 Changes sync automatically every 10 seconds</p>
+                        <p>🔹 Images and formatting are preserved</p>
+                        <p><br></p>
+                        <p><em>✏️ Try typing here, then open this page on another device...</em></p>
+                    `;
+                    editor.innerHTML = initialContent;
+                    await saveContentToCloud(initialContent, true);
                 }
-            } else if (!data) {
-                // First time - create initial content
-                const initialContent = `
-                    <p><strong>🌍 Welcome to the SHARED Whiteboard!</strong></p>
-                    <p>This whiteboard is <strong>synced across all devices</strong>.</p>
-                    <p>🔹 Open this link on multiple devices - they all see the same content</p>
-                    <p>🔹 Changes sync automatically every 5 seconds</p>
-                    <p>🔹 Images and formatting are preserved</p>
-                    <p><br></p>
-                    <p><em>✏️ Try typing here, then open this page on another device...</em></p>
-                `;
-                editor.innerHTML = initialContent;
-                await saveContentToCloud(initialContent);
             }
         } catch (error) {
             console.error('Load error:', error);
-            updateStatus('Connection error', true);
+            if (error.message.includes('relation') || error.message.includes('does not exist')) {
+                updateStatus('Setup required');
+                document.getElementById('configPanel')?.classList.add('show');
+                editor.innerHTML = `
+                    <div style="text-align: center; padding: 40px;">
+                        <h3>⚠️ Database Setup Required</h3>
+                        <p style="margin-top: 20px;">Please run the SQL command in Supabase SQL Editor:</p>
+                        <pre style="background: #f5f5f5; padding: 10px; margin-top: 10px; text-align: left; overflow-x: auto;">
+CREATE TABLE shared_whiteboard (
+    board_id TEXT PRIMARY KEY,
+    content_html TEXT,
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+INSERT INTO shared_whiteboard (board_id, content_html) 
+VALUES ('main_whiteboard', '<p>Shared whiteboard ready!</p>');
+ALTER TABLE shared_whiteboard ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable all" ON shared_whiteboard FOR ALL USING (true);</pre>
+                    </div>
+                `;
+            }
         }
     }
     
-    // Start polling for changes (replacement for real-time)
+    // Start polling for changes
     function startPolling() {
         if (pollingInterval) clearInterval(pollingInterval);
         pollingInterval = setInterval(() => {
-            if (supabaseClient) {
+            if (supabaseClient && !isSavingToCloud && !isUpdatingFromSync) {
                 loadContentFromCloud();
             }
-        }, 5000); // Check for changes every 5 seconds
-        console.log('Polling started (checks every 5 seconds)');
+        }, 10000); // Check every 10 seconds
+        console.log('Polling started (every 10 seconds)');
     }
     
-    // Trigger auto-save after edits
+    // Trigger auto-save after user stops typing
     let saveTimeout;
     function triggerAutoSave() {
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
-            const content = editor.innerHTML;
-            if (content && content !== '<br>' && content !== lastSavedContent) {
-                saveContentToCloud(content);
+            const content = getCurrentContent();
+            if (content && content !== '<br>' && content !== lastKnownContent) {
+                saveContentToCloud(content, false);
             }
-        }, 3000);
+        }, 3000); // Save 3 seconds after user stops typing
     }
     
     // ============ RICH TEXT EDITING ============
@@ -467,6 +526,11 @@
     document.getElementById('imageUpload')?.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
+        
+        if (!file.type.startsWith('image/')) {
+            showMessage('Please select an image file', true);
+            return;
+        }
         
         const reader = new FileReader();
         reader.onload = (ev) => {
@@ -493,11 +557,13 @@
                 const blob = item.getAsFile();
                 const reader = new FileReader();
                 reader.onload = (ev) => {
+                    editor.focus();
                     const img = document.createElement('img');
                     img.src = ev.target.result;
                     img.style.maxWidth = '100%';
                     document.execCommand('insertHTML', false, img.outerHTML);
                     triggerAutoSave();
+                    showMessage('📸 Image pasted');
                 };
                 reader.readAsDataURL(blob);
                 break;
@@ -505,8 +571,17 @@
         }
     });
     
-    editor.addEventListener('input', () => triggerAutoSave());
-    editor.addEventListener('keyup', () => triggerAutoSave());
+    // Listen to edits
+    editor.addEventListener('input', () => {
+        if (!isUpdatingFromSync) {
+            triggerAutoSave();
+        }
+    });
+    editor.addEventListener('keyup', () => {
+        if (!isUpdatingFromSync) {
+            triggerAutoSave();
+        }
+    });
     
     // Go button
     function navigateToLink() {
@@ -517,15 +592,17 @@
         }
         if (!url.startsWith('http')) url = 'https://' + url;
         window.open(url, '_blank');
+        showMessage(`Opening: ${url}`);
     }
     document.getElementById('goBtn')?.addEventListener('click', navigateToLink);
     document.getElementById('urlInput')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') navigateToLink();
     });
     
-    // Manual sync
-    document.getElementById('manualSaveBtn')?.addEventListener('click', () => {
-        saveContentToCloud(editor.innerHTML);
+    // Manual sync button
+    document.getElementById('manualSaveBtn')?.addEventListener('click', async () => {
+        const content = getCurrentContent();
+        await saveContentToCloud(content, true);
     });
     
     // ============ SUPABASE CONNECTION ============
@@ -535,7 +612,6 @@
             return false;
         }
         
-        // Validate URL format
         if (!url.startsWith('https://')) {
             showMessage('URL must start with https://', true);
             return false;
@@ -568,7 +644,6 @@
         const panel = document.getElementById('configPanel');
         panel?.classList.toggle('show');
         
-        // Pre-fill saved credentials
         const savedUrl = localStorage.getItem('supabase_url');
         const savedKey = localStorage.getItem('supabase_key');
         if (savedUrl) document.getElementById('supabaseUrlInput').value = savedUrl;
